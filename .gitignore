@@ -1,0 +1,44 @@
+# Local Python environments and caches
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.mpl-cache/
+.pip-cache/
+.packages/
+
+# OCR runtime, staged files, databases and logs
+**/data/
+**/sources/
+**/output/
+**/tmp/
+**/backups/
+*.db
+*.sqlite*
+*.log
+*.tmp
+
+# Private teaching data and generated question-bank records
+toan-ai-local/question_candidates.json
+toan-ai-local/question_bank.json
+toan-ai-local/question_drafts.json
+toan-ai-local/approved_questions.json
+toan-ai-local/quiz_variants.json
+toan-ai-local/image_analysis.json
+toan-ai-local/source_catalog.json
+toan-ai-local/ai_scan_status.json
+
+# Credentials and machine-specific state
+*.key
+*.pem
+*.secret
+*.bin
+toan-ai-local/.gemini_key.bin
+toan-ai-local/.remembered_user.json
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

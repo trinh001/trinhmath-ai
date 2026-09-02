@@ -1,0 +1,5 @@
+streamlit>=1.38,<2
+Pillow>=10
+reportlab>=4
+matplotlib>=3.8
+pypdf>=6.16
