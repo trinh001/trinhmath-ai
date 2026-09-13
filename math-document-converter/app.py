@@ -20,13 +20,34 @@ ConverterStore = storage_module.ConverterStore
 from converter.trinhmath_bridge import bank_status, sync_results_to_trinhmath
 from converter.worker import process_one
 from converter.post_ocr_service import parse_available_documents
+from converter.matching_service import run_dry_match
 
 
 APP_DIR = Path(__file__).parent
 # Queue, staged images and OCR results can be several GB.  Prefer E: on this
 # laptop; fall back to the project folder when the drive is unavailable.
 PREFERRED_DATA_DIR = Path(r"E:\TrinhMath_Data\MathDocumentConverter")
-DEFAULT_DATA_DIR = PREFERRED_DATA_DIR if PREFERRED_DATA_DIR.is_dir() else APP_DIR / "data"
+
+
+def writable_data_directory(path: Path) -> bool:
+    """Use the large E: workspace only when this process can really write it.
+
+    An existing drive is not enough: Streamlit may be launched by a different
+    Windows account/service which can see E: but cannot create its SQLite
+    journal there.  In that case a local fallback keeps the app reachable
+    instead of showing a blank connection error.
+    """
+    probe = path / ".trinhmath_write_probe"
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return True
+    except OSError:
+        return False
+
+
+DEFAULT_DATA_DIR = PREFERRED_DATA_DIR if writable_data_directory(PREFERRED_DATA_DIR) else APP_DIR / "data"
 DATA_DIR = Path(os.environ.get("MATH_CONVERTER_DATA_DIR", DEFAULT_DATA_DIR))
 INPUTS_DIR = DATA_DIR / "inputs"
 STORE = ConverterStore(DATA_DIR / "converter.db")
@@ -121,6 +142,36 @@ def get_parsed_rows(store, limit: int = 100):
         ).fetchall()
 
 
+def get_match_rows(store, limit: int = 100, status: str | None = None):
+    method = getattr(store, "match_reviews", None)
+    if callable(method):
+        return method(limit, status)
+    with store.session() as connection:
+        values = []
+        where = ""
+        if status and status != "Tất cả":
+            where = "WHERE match_reviews.status=?"
+            values.append(status)
+        values.append(limit)
+        return connection.execute(
+            f"""SELECT match_reviews.*, parsed_questions.question_number, parsed_questions.question_type,
+                       parsed_questions.question_text, parsed_questions.raw_ocr_text,
+                       documents.source_path, parsed_questions.first_page_number
+                FROM match_reviews JOIN parsed_questions ON parsed_questions.id=match_reviews.parser_draft_id
+                JOIN documents ON documents.id=parsed_questions.document_id
+                {where} ORDER BY match_reviews.updated_at DESC LIMIT ?""",
+            values,
+        ).fetchall()
+
+
+def load_trinhmath_candidates() -> dict[str, dict]:
+    path = APP_DIR.parent / "toan-ai-local" / "question_candidates.json"
+    try:
+        return {item.get("candidate_id"): item for item in json.loads(path.read_text(encoding="utf-8")) if item.get("candidate_id")}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
 def auto_ocr_status() -> dict:
     path = DATA_DIR / "auto_ocr_status.json"
     try:
@@ -201,7 +252,7 @@ def main():
     summary = STORE.summary()
     render_live_progress()
 
-    input_tab, queue_tab, review_tab, parser_tab, log_tab = st.tabs(["Thêm tài liệu", "Hàng đợi OCR", "Kiểm tra kết quả", "Parser câu hỏi", "Nhật ký"])
+    input_tab, queue_tab, review_tab, parser_tab, matching_tab, log_tab = st.tabs(["Thêm tài liệu", "Hàng đợi OCR", "Kiểm tra kết quả", "Parser câu hỏi", "Ghép & duyệt", "Nhật ký"])
     with input_tab:
         st.subheader("Đưa tài liệu vào Converter")
         bank = bank_status()
@@ -351,6 +402,101 @@ def main():
                 st.json(structured)
         else:
             st.info("Chưa có bản nháp parser. Khi OCR đã có kết quả, bấm nút chạy Parser ở trên.")
+
+    with matching_tab:
+        st.subheader("Ghép Parser với câu gốc và duyệt an toàn")
+        st.caption("Bước này chỉ tạo quyết định có thể truy vết trong Converter. Không câu nào được tự phát hành sang phần làm bài của học sinh.")
+        match_summary = STORE.match_summary() if callable(getattr(STORE, "match_summary", None)) else {}
+        metric_columns = st.columns(5)
+        metric_columns[0].metric("Chờ duyệt", match_summary.get("REVIEW_REQUIRED", 0))
+        metric_columns[1].metric("Đã nối hình/công thức", match_summary.get("LINKED_SUPPLEMENT", 0))
+        metric_columns[2].metric("Đã xác nhận ghép", match_summary.get("APPROVED_MANUAL", 0))
+        metric_columns[3].metric("Không dùng", match_summary.get("REJECTED", 0))
+        metric_columns[4].metric("Tự động đủ điều kiện", match_summary.get("APPROVED", 0))
+
+        if st.button("Chạy đối chiếu an toàn (dry run)", type="primary"):
+            with st.spinner("Đang đối chiếu Parser với câu gốc; không thay đổi kho câu hỏi…"):
+                _, report = run_dry_match(STORE, DATA_DIR)
+            st.success("Đã cập nhật hàng duyệt. Kho câu hỏi chính chưa bị sửa.")
+            st.json(report)
+            st.rerun()
+
+        status_labels = {
+            "Tất cả": "Tất cả",
+            "REVIEW_REQUIRED": "Cần giáo viên duyệt",
+            "LINKED_SUPPLEMENT": "Đã nối hình/công thức — chưa phát hành",
+            "APPROVED_MANUAL": "Đã xác nhận ghép",
+            "REJECTED": "Không dùng",
+            "APPROVED": "Đủ điều kiện tự động",
+        }
+        selected_status = st.selectbox("Lọc hàng duyệt", list(status_labels), format_func=lambda key: status_labels[key])
+        match_rows = [dict(row) for row in get_match_rows(STORE, 200, selected_status)]
+        if not match_rows:
+            st.info("Chưa có kết quả đối chiếu. Hãy chạy dry run sau khi Parser đã tạo bản nháp.")
+        else:
+            labels = {
+                f"#{row['parser_draft_id']} · Câu {row.get('question_number') or '?'} · {Path(row['source_path']).name} · điểm ghép {row['match_score']:.0%}": row
+                for row in match_rows
+            }
+            selected_label = st.selectbox("Chọn một mục để đối chiếu", list(labels), key="match_review_select")
+            selected = labels[selected_label]
+            candidates = load_trinhmath_candidates()
+            source_candidate = candidates.get(selected.get("matched_candidate_id"))
+            left, center, right = st.columns(3)
+            with left:
+                st.markdown("**OCR gốc**")
+                st.caption(f"Nguồn: {Path(selected['source_path']).name} · trang {selected.get('first_page_number') or '?'}")
+                st.code(selected.get("raw_ocr_text", ""), language="markdown")
+            with center:
+                st.markdown("**Parser hiểu**")
+                st.markdown(selected.get("question_text", "_Không có nội dung_"))
+                st.caption(f"Dạng: {selected.get('question_type', 'unknown')} · Tin cậy parser: {float(selected.get('parser_confidence', 0) or 0):.0%}")
+                try:
+                    parser_flags = json.loads(selected.get("flags_json") or "[]")
+                except json.JSONDecodeError:
+                    parser_flags = ["Không đọc được cờ parser"]
+                if parser_flags:
+                    st.warning("Cờ parser: " + ", ".join(parser_flags))
+            with right:
+                st.markdown("**Câu gốc được đề xuất**")
+                if source_candidate:
+                    st.markdown(source_candidate.get("question_text") or "_Câu gốc chưa có phần chữ_")
+                    st.caption(f"Mã: {source_candidate.get('candidate_id')} · Câu {source_candidate.get('question_number', '?')} · {source_candidate.get('source_name', '')}")
+                else:
+                    st.warning("Chưa có ứng viên ghép rõ ràng; app không tự tạo câu mới.")
+                st.caption(f"Điểm ghép: {selected['match_score']:.1%} · Mơ hồ: {'Có' if selected.get('ambiguity') else 'Không'}")
+            detail_left, detail_right = st.columns(2)
+            with detail_left:
+                st.markdown("**Lý do và điểm thành phần**")
+                st.write(selected.get("decision_reason", ""))
+                try:
+                    st.json(json.loads(selected.get("score_breakdown_json") or "{}"))
+                except json.JSONDecodeError:
+                    st.code(selected.get("score_breakdown_json", ""))
+            with detail_right:
+                st.markdown("**Kiểm tra dữ liệu**")
+                try:
+                    st.json(json.loads(selected.get("validation_json") or "{}"))
+                except json.JSONDecodeError:
+                    st.code(selected.get("validation_json", ""))
+
+            st.divider()
+            st.caption("Xác nhận ở đây chỉ ghi vào nhật ký duyệt Converter. Việc đưa vào đề cho học sinh vẫn cần bước phát hành riêng ở TrinhMath AI.")
+            review_reason = st.text_input("Ghi chú duyệt (không bắt buộc)", key=f"match_reason_{selected['parser_draft_id']}")
+            action_left, action_mid, action_right = st.columns(3)
+            if action_left.button("Giữ ở hàng cần duyệt", key=f"hold_{selected['parser_draft_id']}"):
+                STORE.record_manual_match_decision(selected["parser_draft_id"], "REVIEW_REQUIRED", review_reason or "teacher_kept_for_review")
+                st.rerun()
+            if action_mid.button("Xác nhận bản ghép", type="primary", key=f"approve_match_{selected['parser_draft_id']}"):
+                if not source_candidate:
+                    st.warning("Không thể xác nhận vì chưa có câu gốc được ghép.")
+                else:
+                    STORE.record_manual_match_decision(selected["parser_draft_id"], "APPROVED_MANUAL", review_reason or "teacher_confirmed_match")
+                    st.success("Đã ghi nhận xác nhận và nhật ký. Chưa phát hành cho học sinh.")
+                    st.rerun()
+            if action_right.button("Không dùng bản nháp này", key=f"reject_match_{selected['parser_draft_id']}"):
+                STORE.record_manual_match_decision(selected["parser_draft_id"], "REJECTED", review_reason or "teacher_rejected_parser_draft")
+                st.rerun()
 
     with log_tab:
         events = [dict(row) for row in STORE.recent_events()]

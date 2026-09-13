@@ -99,8 +99,20 @@ def decide(draft: dict, scored: list[dict], validation: dict) -> dict:
     ambiguous = bool(top and runner and score - runner["match_score"] < CONFIG["ambiguity_gap"])
     duplicate = bool(top and score >= CONFIG["duplicate"])
     severe_flags = {"possible_cross_page_question", "question_number_out_of_order", "possible_missing_question_number"}
+    # A number of entries originate from one cropped figure in a Word
+    # question.  They are valuable OCR/LaTeX supplements but are not complete
+    # questions: forcing A/B/C/D validation on them makes the review queue look
+    # broken.  An exact image association can safely link the *source* only;
+    # it never approves its OCR text or publishes anything to students.
+    visual_supplement = bool(
+        top
+        and top.get("breakdown", {}).get("image") == 1
+        and draft.get("question_type") == "unknown"
+        and not ambiguous
+    )
     auto = bool(top and score >= CONFIG["auto_approve"] and validation["pass"] and not ambiguous and not severe_flags.intersection(draft.get("flags") or []))
     if auto: status, reason = "APPROVED", "very_high_match_and_validation_pass"
+    elif visual_supplement: status, reason = "LINKED_SUPPLEMENT", "exact_image_link_ocr_is_supplement_not_question"
     elif not top: status, reason = "REVIEW_REQUIRED", "no_candidate"
     elif ambiguous: status, reason = "REVIEW_REQUIRED", "ambiguous_candidates"
     elif not validation["pass"]: status, reason = "REVIEW_REQUIRED", "validation_failed"

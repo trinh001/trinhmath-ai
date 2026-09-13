@@ -360,3 +360,55 @@ class ConverterStore:
         with self.session() as connection:
             rows = connection.execute("SELECT status, COUNT(*) amount FROM match_reviews GROUP BY status").fetchall()
         return {row["status"]: row["amount"] for row in rows}
+
+    def match_reviews(self, limit: int = 100, status: str | None = None):
+        """Return review rows with their immutable parser/source context.
+
+        This deliberately reads from the converter database only.  A reviewer
+        decision is not a publication action and can therefore never change
+        TrinhMath's student-facing question bank by accident.
+        """
+        query = """
+            SELECT match_reviews.*, parsed_questions.question_number,
+                   parsed_questions.question_type, parsed_questions.question_text,
+                   parsed_questions.question_math_json, parsed_questions.options_json,
+                   parsed_questions.correct_answer, parsed_questions.solution,
+                   parsed_questions.images_json, parsed_questions.confidence AS parser_confidence,
+                   parsed_questions.raw_ocr_text, parsed_questions.flags_json,
+                   parsed_questions.validation_json AS parser_validation_json,
+                   documents.source_path, parsed_questions.first_page_number,
+                   parsed_questions.last_page_number
+            FROM match_reviews
+            JOIN parsed_questions ON parsed_questions.id=match_reviews.parser_draft_id
+            JOIN documents ON documents.id=parsed_questions.document_id
+        """
+        values: list[object] = []
+        if status and status != "Tất cả":
+            query += " WHERE match_reviews.status=?"
+            values.append(status)
+        query += " ORDER BY match_reviews.updated_at DESC, match_reviews.id DESC LIMIT ?"
+        values.append(limit)
+        with self.session() as connection:
+            return connection.execute(query, values).fetchall()
+
+    def record_manual_match_decision(self, parser_draft_id: int, decision: str, reason: str, approved_by: str = "TEACHER") -> None:
+        """Record an auditable reviewer decision without touching source questions."""
+        allowed = {"REVIEW_REQUIRED", "APPROVED_MANUAL", "REJECTED"}
+        if decision not in allowed:
+            raise ValueError("Trạng thái duyệt không hợp lệ")
+        timestamp = now()
+        with self.session() as connection:
+            row = connection.execute(
+                "SELECT matched_candidate_id, match_score, validation_json FROM match_reviews WHERE parser_draft_id=?",
+                (parser_draft_id,),
+            ).fetchone()
+            if not row:
+                raise ValueError("Không tìm thấy kết quả ghép để duyệt")
+            connection.execute(
+                "UPDATE match_reviews SET status=?, decision_reason=?, updated_at=? WHERE parser_draft_id=?",
+                (decision, reason.strip() or "manual_review", timestamp, parser_draft_id),
+            )
+            connection.execute(
+                "INSERT INTO match_audit_log(parser_draft_id, matched_candidate_id, decision, decision_reason, match_score, validation_json, approved_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (parser_draft_id, row["matched_candidate_id"], decision, reason.strip() or "manual_review", float(row["match_score"]), row["validation_json"], approved_by, timestamp),
+            )
