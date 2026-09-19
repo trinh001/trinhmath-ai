@@ -8,7 +8,7 @@
 
 ## CURRENT STATE
 
-Phase 1 local verification đã PASS và đang ở checkpoint commit/push. App vẫn không import hay gọi provider mới; feature flag DeepSeek mặc định OFF.
+Phase 1 local verification và CI đã PASS. PR #3 đang open, sạch và chờ human review; app vẫn không import hay gọi provider mới, feature flag DeepSeek mặc định OFF.
 
 ## ACTIVE TASK
 
@@ -20,7 +20,7 @@ PR #3 đã được cập nhật và implementation CI đã PASS. Chỉ chuẩn 
 
 ## LAST SAFE COMMIT
 
-`ef99071` — implementation checkpoint đã qua full local verification; lấy SHA hiện hành bằng `git log -1 --format=%H` trước khi tiếp tục.
+`0ee3a82` — CI/pass-status checkpoint gần nhất; lấy SHA hiện hành bằng `git log -1 --format=%H` trước khi tiếp tục.
 
 ## TEST STATUS
 
