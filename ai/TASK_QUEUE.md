@@ -26,3 +26,20 @@ Khung GPT → Codex → DeepSeek/Qwen đã được thiết kế ở mức tài 
 3. Qwen chỉ được thử trên golden set trước khi dùng cho batch Toán/tài liệu.
 4. Việc triển khai adapter provider phải có feature flag mặc định OFF, dry-run, giới hạn batch/retry/timeout và log usage/cost.
 5. Chưa thêm API key hoặc gọi dịch vụ trả phí cho tới khi người dùng chọn provider/model và budget.
+
+
+## Continuous execution plan
+
+Nguồn điều phối dài hạn:
+- `ai/MASTER_EXECUTION_PLAN.md`
+- `ai/CODEX_CONTINUOUS_RUNBOOK.md`
+
+### Phase hiện tại
+Phase 0 → đồng bộ local với `origin/main`, sau đó Phase 1 → provider abstraction offline, chưa gọi mạng.
+
+### Task kế tiếp cho Codex
+1. Đồng bộ local main với GitHub main mới nhất.
+2. Tạo branch implementation riêng.
+3. Xây provider abstraction + mock provider + feature flag OFF.
+4. Viết test không-network.
+5. Chỉ sau khi Phase 1 PASS mới sang DeepSeek adapter.
