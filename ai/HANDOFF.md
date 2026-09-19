@@ -8,11 +8,11 @@
 
 ## CURRENT STATE
 
-Phase 2 local verification, diff và secret gate đã PASS trên branch mới từ `origin/main`; đang sẵn sàng commit/push. App vẫn không import hay gọi provider mới, feature flag DeepSeek mặc định OFF.
+Phase 2 local verification, diff và secret gate đã PASS; implementation commit đã push trên branch mới từ `origin/main`. App vẫn không import hay gọi provider mới, feature flag DeepSeek mặc định OFF.
 
 ## ACTIVE TASK
 
-Commit/push branch Phase 2, rồi tạo PR và theo dõi CI. Không merge.
+Tạo PR Phase 2 sau xác nhận submission GitHub, rồi theo dõi CI. Không merge.
 
 ## ACTIVE BRANCH
 
@@ -38,4 +38,4 @@ Không có blocker kỹ thuật cho verification local. HTTP implementation/API 
 
 ## NEXT EXACT ACTION
 
-Review staged diff, commit/push branch Phase 2 và tạo PR; không bật transport HTTP, không yêu cầu key, không chạy pilot và không merge `main`.
+Sau xác nhận, tạo PR từ `codex/deepseek-transport-2026-09-20` vào `main`, rồi theo dõi CI; không bật transport HTTP, không yêu cầu key, không chạy pilot và không merge `main`.

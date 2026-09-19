@@ -4,7 +4,7 @@ _Cập nhật checkpoint: 20/09/2026. Trạng thái Git thật phải lấy bằ
 
 ## Đang thực hiện
 
-- Phase 2 transport adapter guardrails đã được dựng trên branch mới từ `origin/main`; local test/diff/security gate PASS, đang chờ commit/push. Provider chưa được tích hợp vào `app.py`, chưa gọi mạng và không có key/API thật.
+- Phase 2 transport adapter guardrails đã được dựng và push trên branch mới từ `origin/main`; local test/diff/security gate PASS. PR/CI đang chờ submission GitHub được xác nhận. Provider chưa được tích hợp vào `app.py`, chưa gọi mạng và không có key/API thật.
 
 ## Việc tiếp theo đủ điều kiện (sau checkpoint sạch)
 

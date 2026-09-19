@@ -2,7 +2,7 @@
 
 ## Goal
 
-Complete the reversible Phase 2 transport-adapter checkpoint on a branch from current main: injected transport contract and guardrails, with no external network/API usage and no app/data integration.
+Submit the completed reversible Phase 2 transport-adapter checkpoint for PR review: injected transport contract and guardrails, with no external network/API usage and no app/data integration.
 
 ## Scope
 
