@@ -4,7 +4,7 @@ _Cập nhật checkpoint: 20/09/2026. Trạng thái Git thật phải lấy bằ
 
 ## Đang thực hiện
 
-- Phase 1 provider abstraction/router offline đã được dựng và local verification đã PASS; checkpoint đang chờ commit/push để cập nhật PR #3.
+- Phase 1 provider abstraction/router offline đã được dựng, local verification và CI implementation checkpoint đã PASS. PR #3 chờ human review; không auto-merge.
 - Provider chưa được tích hợp vào `app.py`, chưa gọi mạng và không có key/API thật.
 
 ## Việc tiếp theo đủ điều kiện (sau checkpoint sạch)

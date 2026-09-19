@@ -12,7 +12,7 @@ Phase 1 local verification đã PASS và đang ở checkpoint commit/push. App v
 
 ## ACTIVE TASK
 
-Commit/push checkpoint an toàn để cập nhật PR #3, rồi theo dõi CI; không merge.
+PR #3 đã được cập nhật và implementation CI đã PASS. Chỉ chuẩn bị follow-up sau human review; không merge.
 
 ## ACTIVE BRANCH
 
@@ -38,4 +38,4 @@ Không có blocker kỹ thuật cho verification local. API key/network/pilot l�
 
 ## NEXT EXACT ACTION
 
-Chạy một lượt `git diff --check`, review staged diff, rồi commit/push branch PR. Sau push, kiểm tra CI. Không merge `main`.
+Chờ human review PR #3. Không bật transport, không yêu cầu key, không chạy pilot và không merge `main` khi chưa có quyết định rõ.

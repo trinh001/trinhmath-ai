@@ -17,7 +17,7 @@ _Checkpoint: 20/09/2026, Phase 1 offline provider/router. Các kết quả dư�
 
 ## Final local gate
 
-PASS: `git diff --check`, Git status review và quét Git-tracked text không thấy secret/token/key có độ tin cậy cao; không có `.env`, database, ZIP, key/pem hay secret-named file bị track. CI trên PR vẫn cần chạy sau push và chỉ được cài dependencies công khai/chạy offline tests.
+PASS: `git diff --check`, Git status review và quét Git-tracked text không thấy secret/token/key có độ tin cậy cao; không có `.env`, database, ZIP, key/pem hay secret-named file bị track. GitHub Actions run `35457468504` cũng PASS: `trinhmath-code` và `converter-code`. CI chỉ cài dependencies công khai/chạy offline tests.
 
 ## Future expectations
 

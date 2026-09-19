@@ -2,7 +2,7 @@
 
 ## Goal
 
-Push the completed reversible Phase 1 checkpoint and observe CI: optional DeepSeek provider contract and FAST/PRO router, with no external network/API usage and no app/data integration.
+Keep PR #3 ready for human review after completing the reversible Phase 1 checkpoint: optional DeepSeek provider contract and FAST/PRO router, with no external network/API usage and no app/data integration.
 
 ## Scope
 
