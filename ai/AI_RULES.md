@@ -40,3 +40,12 @@ Rủi ro/quyết định còn mở: ...
 
 Do not include credentials, private OCR/source images, learner data, databases
 or unreviewed question content in a handoff.
+
+
+## Multi-provider activation
+
+- DeepSeek/Qwen/external providers mặc định OFF.
+- Trước khi bật phải đọc `ai/PROVIDER_POLICY.md`.
+- Không provider nào được nhận secret, dữ liệu học sinh hoặc toàn kho tài liệu theo mặc định.
+- Provider code về sau phải có feature flag, dry-run, cost/batch guard và test không cần network.
+- Prompt chuẩn nằm trong `ai/prompts/`; thay đổi prompt/model lớn phải benchmark lại golden set.

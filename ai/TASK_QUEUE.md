@@ -15,3 +15,14 @@
 
 - Không cài hoặc vận hành `codex-with-chatgpt`: đây là công cụ tích hợp bên ngoài có Cloudflare tunnel/OAuth, không phải một nhu cầu đã được phê duyệt của TrinhMath.
 - Không tự triển khai cloud, migration database, thay đổi phân quyền hoặc phát hành nội dung.
+
+
+## Multi-AI framework (19/09/2026)
+
+Khung GPT → Codex → DeepSeek/Qwen đã được thiết kế ở mức tài liệu và policy, chưa bật API:
+
+1. Đọc `ai/MULTI_AI_WORKFLOW.md` và `ai/PROVIDER_POLICY.md` trước khi tích hợp provider.
+2. DeepSeek là fallback/reviewer/coder phụ; không tự merge hoặc phát hành nội dung.
+3. Qwen chỉ được thử trên golden set trước khi dùng cho batch Toán/tài liệu.
+4. Việc triển khai adapter provider phải có feature flag mặc định OFF, dry-run, giới hạn batch/retry/timeout và log usage/cost.
+5. Chưa thêm API key hoặc gọi dịch vụ trả phí cho tới khi người dùng chọn provider/model và budget.
