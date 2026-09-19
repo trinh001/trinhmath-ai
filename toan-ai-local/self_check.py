@@ -39,6 +39,8 @@ audit = audit_data_links(app.get_sources(), app.get_candidates(), app.get_quiz_v
 assert not has_data_link_errors(audit), audit
 quality_report = app.get_bank_quality_report()
 assert isinstance(quality_report["variant_issues"], list)
+assert sum(quality_report["triage"]["counts"].values()) == len(app.get_candidates())
+assert {row["group"] for row in quality_report["triage"]["rows"]} <= {"A", "B", "C", "D"}
 coverage_grade12 = app.get_curriculum_coverage("Lớp 12")
 assert coverage_grade12["lessons"]
 assert all(item["coverage"] in {"Có thể luyện ngắn", "Cần thêm câu đã duyệt", "Có nguyên liệu, chưa phát hành", "Chưa có dữ liệu"} for item in coverage_grade12["lessons"])

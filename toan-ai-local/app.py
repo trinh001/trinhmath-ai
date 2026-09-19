@@ -24,8 +24,51 @@ from PIL import Image
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from source_analyzer import analyze_sources, has_ooxml_math, map_docx_question_images, map_docx_legacy_math_images
+from candidate_triage import triage_candidate, triage_candidates
+from curriculum_coverage import (
+    build_curriculum_coverage as _build_curriculum_coverage,
+    build_development_queue as _build_development_queue,
+    curriculum_lesson_key as _curriculum_lesson_key,
+)
+from source_quality import source_content_quality_issues
+import importlib
+import local_review_workflow
+import source_review
+
+# Streamlit giữ module giữa các lần rerun. Nạp lại rõ ràng để thay đổi của hàng
+# kiểm duyệt nguồn được phản ánh cùng lần chạy app, thay vì giữ API cũ trong
+# một phiên phát triển đang mở.
+local_review_workflow = importlib.reload(local_review_workflow)
+source_review = importlib.reload(source_review)
+build_local_review_queue = source_review.build_local_review_queue
+build_local_source_batches = source_review.build_local_source_batches
+build_source_review_snapshot = source_review.build_source_review_snapshot
+prioritize_draft_ids_for_review = source_review.prioritize_draft_ids_for_review
+DECISION_LABELS = local_review_workflow.DECISION_LABELS
+LOCAL_DRAFT_PROVENANCE = local_review_workflow.LOCAL_DRAFT_PROVENANCE
+clear_local_draft_flag = local_review_workflow.clear_local_draft_flag
+flag_local_draft = local_review_workflow.flag_local_draft
+flag_local_draft_batch = local_review_workflow.flag_local_draft_batch
+review_decision_text = local_review_workflow.review_decision_text
 from health_checks import audit_data_links, has_data_link_errors, validate_curricula
 from problem_workspace import build_problem_review, local_study_hint
+from adaptive_learning import (
+    build_next_practice_recommendation as _build_next_practice_recommendation,
+    cognitive_level_band as _cognitive_level_band,
+    practice_difficulty_plan as _practice_difficulty_plan,
+    select_adaptive_question_ids as _select_adaptive_question_ids,
+)
+from grading import (
+    grade as _grade,
+    normalized_number as _normalized_number,
+    short_answer_matches as _short_answer_matches,
+)
+from math_verifier import math_verification_release_issue
+from variant_validation import (
+    explicit_solution_answer_labels as _explicit_solution_answer_labels,
+    validate_quiz_variant_for_student as _validate_quiz_variant_for_student,
+)
+from variant_review_service import attach_math_verification
 from datetime import datetime, timedelta
 from pathlib import Path
 from reportlab.lib import colors
@@ -1001,7 +1044,12 @@ def parse_strict_local_multiple_choice(candidate):
     Đây là parser bảo thủ cho nhóm văn bản không cần hình. Nếu một nhãn đáp án
     hoặc lựa chọn bị thiếu, nó trả về ``None`` để câu tiếp tục ở hàng duyệt/AI.
     """
-    if not candidate.get("eligible_for_text_pipeline") or candidate.get("boundary_issue") or detect_candidate_boundary_issue(candidate):
+    if (
+        not candidate.get("eligible_for_text_pipeline")
+        or candidate.get("boundary_issue")
+        or detect_candidate_boundary_issue(candidate)
+        or source_content_quality_issues(candidate)
+    ):
         return None
     match = STRICT_MC_OPTIONS_RE.match(str(candidate.get("question_text") or "").strip())
     answer_match = STRICT_MC_ANSWER_RE.search(str(candidate.get("solution_text") or ""))
@@ -1021,8 +1069,8 @@ def parse_strict_local_multiple_choice(candidate):
         "solution_latex_or_text": str(candidate.get("solution_text") or "").strip(),
         "topic": candidate.get("topic") or candidate.get("lesson") or "Chưa phân loại",
         "cognitive_level": candidate.get("cognitive_level") or "Chưa xác định",
-        "requires_teacher_review": False,
-        "reason": "Tách cục bộ theo mẫu đủ A/B/C/D và đáp án ghi rõ trong lời giải.",
+        "requires_teacher_review": True,
+        "reason": "Tách cục bộ theo mẫu đủ A/B/C/D. Giáo viên phải đối chiếu nguồn trước khi duyệt.",
     }
 
 
@@ -1033,7 +1081,12 @@ def parse_strict_local_short_answer(candidate):
     Vì thế đây chỉ là tiền xử lý an toàn để tạo *bản nháp*, không thay AI/giáo
     viên đánh giá tính đúng đắn của đề gốc.
     """
-    if not candidate.get("eligible_for_text_pipeline") or candidate.get("boundary_issue") or detect_candidate_boundary_issue(candidate):
+    if (
+        not candidate.get("eligible_for_text_pipeline")
+        or candidate.get("boundary_issue")
+        or detect_candidate_boundary_issue(candidate)
+        or source_content_quality_issues(candidate)
+    ):
         return None
     question = str(candidate.get("question_text") or "").strip()
     solution = str(candidate.get("solution_text") or "").strip()
@@ -1064,8 +1117,8 @@ def parse_strict_local_short_answer(candidate):
         "solution_latex_or_text": solution,
         "topic": candidate.get("topic") or candidate.get("lesson") or "Chưa phân loại",
         "cognitive_level": candidate.get("cognitive_level") or "Chưa xác định",
-        "requires_teacher_review": False,
-        "reason": "Tách cục bộ theo đáp số và phần giải thích có sẵn trong nguồn.",
+        "requires_teacher_review": True,
+        "reason": "Tách cục bộ theo đáp số và phần giải thích nguồn. Giáo viên phải đối chiếu trước khi duyệt.",
     }
 
 
@@ -1101,6 +1154,9 @@ def create_strict_local_drafts(limit=50):
         if not candidate_id or candidate_id in drafts:
             summary["skipped"] += 1
             continue
+        if triage_candidate(candidate)["group"] != "A":
+            summary["skipped"] += 1
+            continue
         parsed = parse_strict_local_multiple_choice(candidate)
         if not parsed:
             continue
@@ -1131,6 +1187,9 @@ def create_strict_local_short_answer_drafts(limit=50):
             break
         candidate_id = candidate.get("candidate_id")
         if not candidate_id or candidate_id in drafts:
+            summary["skipped"] += 1
+            continue
+        if triage_candidate(candidate)["group"] != "A":
             summary["skipped"] += 1
             continue
         parsed = parse_strict_local_short_answer(candidate)
@@ -1189,9 +1248,21 @@ def refresh_question_draft_statuses():
     drafts = get_question_drafts()
     changed = False
     for record in drafts.values():
+        # Các trạng thái do giáo viên tạo phải được giữ nguyên qua mỗi rerun.
+        # Nếu ghi đè chúng bằng nhãn chung “AI”, câu đã gắn cờ sẽ quay lại
+        # hàng chờ như chưa từng được xem.
+        if (
+            record.get("status") == "Đã duyệt và đưa vào ngân hàng"
+            or record.get("review_decision")
+            or record.get("teacher_source_reviewed_at")
+        ):
+            continue
         try:
             parsed = parse_ai_draft_json(record.get("draft", ""))
-            status = "Bản nháp AI — chưa dùng cho học sinh" if parsed.get("usable") else "Thiếu dữ kiện — không dùng tự động"
+            if record.get("provenance") in {"strict_local_mc_parser", "strict_local_short_answer_parser"}:
+                status = "Bản nháp cục bộ — cần đối chiếu giáo viên"
+            else:
+                status = "Bản nháp AI — chưa dùng cho học sinh" if parsed.get("usable") else "Thiếu dữ kiện — không dùng tự động"
         except (TypeError, json.JSONDecodeError):
             status = "AI trả lời chưa hoàn chỉnh — cần tạo lại"
         if record.get("status") not in {"Đã duyệt và đưa vào ngân hàng", status}:
@@ -1199,6 +1270,130 @@ def refresh_question_draft_statuses():
             changed = True
     if changed:
         QUESTION_DRAFTS_FILE.write_text(json.dumps(drafts, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def certify_local_draft_after_source_review(candidate_id):
+    """Mở khóa duyệt một bản nháp cục bộ sau thao tác xác nhận của giáo viên.
+
+    Chỉ nhận bản nháp do parser cục bộ tạo, không có cờ mất dữ kiện nguồn. Hàm
+    không phê duyệt câu; nó chỉ ghi lại việc giáo viên đã đối chiếu để nút duyệt
+    chính thức có thể xuất hiện ở bước kế tiếp.
+    """
+    drafts = get_question_drafts()
+    record = drafts.get(candidate_id)
+    if not record or record.get("provenance") not in {"strict_local_mc_parser", "strict_local_short_answer_parser"}:
+        return False, "Chỉ bản nháp cục bộ trong hàng này mới dùng được bước xác nhận nguồn."
+    if record.get("review_decision"):
+        return False, "Bản nháp đang được gắn cờ. Hãy khôi phục về hàng đối chiếu trước khi xác nhận nguồn."
+    candidate = next((item for item in get_candidates() if item.get("candidate_id") == candidate_id), {})
+    issues = source_content_quality_issues(candidate)
+    if issues:
+        return False, "Nguồn có dấu hiệu mất dữ kiện: " + " ".join(issues)
+    try:
+        draft, validation_issue = normalize_question_draft_for_review(parse_ai_draft_json(record.get("draft", "")))
+    except (TypeError, json.JSONDecodeError):
+        return False, "Bản nháp không đúng định dạng JSON."
+    if validation_issue or not draft.get("usable"):
+        return False, validation_issue or "Bản nháp chưa đủ dữ kiện để duyệt."
+    draft["requires_teacher_review"] = False
+    draft["teacher_source_reviewed_at"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+    draft["reason"] = "Đã được giáo viên xác nhận đối chiếu nguồn cục bộ."
+    record["draft"] = json.dumps(draft, ensure_ascii=False)
+    record["status"] = "Đã xác nhận nguồn — chờ duyệt vào ngân hàng"
+    record["teacher_source_reviewed_at"] = draft["teacher_source_reviewed_at"]
+    drafts[candidate_id] = record
+    QUESTION_DRAFTS_FILE.write_text(json.dumps(drafts, ensure_ascii=False, indent=2), encoding="utf-8")
+    return True, "Đã ghi nhận đối chiếu nguồn. Hãy duyệt vào ngân hàng ở bước kế tiếp nếu nội dung Toán đúng."
+
+
+def flag_local_draft_after_teacher_review(candidate_id, category, note):
+    """Gắn cờ có thể khôi phục, luôn giữ nguyên bản nháp và nguồn gốc."""
+    drafts = get_question_drafts()
+    ok, updated, message = flag_local_draft(
+        drafts.get(candidate_id), category, note, datetime.now().strftime("%d/%m/%Y %H:%M")
+    )
+    if not ok or updated is None:
+        return False, message
+    try:
+        draft = parse_ai_draft_json(updated.get("draft", ""))
+        draft["requires_teacher_review"] = True
+        updated["draft"] = json.dumps(draft, ensure_ascii=False)
+    except (TypeError, json.JSONDecodeError):
+        # Cờ vẫn có giá trị điều phối ngay cả khi JSON cũ cần tạo lại.
+        pass
+    drafts[candidate_id] = updated
+    QUESTION_DRAFTS_FILE.write_text(json.dumps(drafts, ensure_ascii=False, indent=2), encoding="utf-8")
+    return True, message
+
+
+def flag_local_source_batch_after_teacher_review(source_file, candidate_ids, category, note):
+    """Gắn cờ cả lô đã được giáo viên xác nhận cùng một lỗi nguồn.
+
+    Chỉ tác động bản nháp cục bộ chưa duyệt, giữ nguyên bản nháp, ảnh/OCR và
+    mọi cờ cũ. Không dùng chức năng này để duyệt hoặc phát hành hàng loạt.
+    """
+    source_file = str(source_file or "").strip()
+    if not source_file:
+        return False, "Không xác định được tệp nguồn của lô cần gắn cờ."
+    drafts = get_question_drafts()
+    draft_ids = [str(candidate_id) for candidate_id in candidate_ids if str(candidate_id)] if isinstance(candidate_ids, list) else []
+    updated_drafts, changed_ids, skipped_ids = flag_local_draft_batch(
+        drafts,
+        draft_ids,
+        category,
+        note,
+        datetime.now().strftime("%d/%m/%Y %H:%M"),
+    )
+    if not changed_ids:
+        return False, "Không có bản nháp cục bộ chưa duyệt nào trong lô để gắn cờ."
+    for candidate_id in changed_ids:
+        record = updated_drafts[candidate_id]
+        try:
+            parsed = parse_ai_draft_json(record.get("draft", ""))
+            parsed["requires_teacher_review"] = True
+            record["draft"] = json.dumps(parsed, ensure_ascii=False)
+        except (TypeError, json.JSONDecodeError):
+            # Cờ kiểm duyệt vẫn được lưu, kể cả khi JSON cũ cần tạo lại.
+            pass
+    QUESTION_DRAFTS_FILE.write_text(json.dumps(updated_drafts, ensure_ascii=False, indent=2), encoding="utf-8")
+    suffix = f" Bỏ qua {len(skipped_ids)} nháp đã duyệt hoặc đã có cờ trước đó." if skipped_ids else ""
+    return True, f"Đã gắn cờ {len(changed_ids)} bản nháp từ cùng tệp nguồn.{suffix}"
+
+
+def restore_local_draft_to_review_queue(candidate_id):
+    """Khôi phục một cờ giáo viên; không tự mở khóa bước duyệt."""
+    drafts = get_question_drafts()
+    ok, updated, message = clear_local_draft_flag(drafts.get(candidate_id))
+    if not ok or updated is None:
+        return False, message
+    drafts[candidate_id] = updated
+    QUESTION_DRAFTS_FILE.write_text(json.dumps(drafts, ensure_ascii=False, indent=2), encoding="utf-8")
+    return True, message
+
+
+def require_teacher_review_for_local_drafts():
+    """Nâng chuẩn các bản nháp cục bộ cũ mà không xóa hoặc sửa nội dung."""
+    drafts = get_question_drafts()
+    changed = 0
+    for record in drafts.values():
+        if record.get("provenance") not in {"strict_local_mc_parser", "strict_local_short_answer_parser"}:
+            continue
+        try:
+            draft = parse_ai_draft_json(record.get("draft", ""))
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if not draft.get("requires_teacher_review"):
+            draft["requires_teacher_review"] = True
+            draft["reason"] = (
+                "Bản nháp cục bộ phải được giáo viên đối chiếu nguồn trước khi duyệt. "
+                + str(draft.get("reason") or "")
+            ).strip()
+            record["draft"] = json.dumps(draft, ensure_ascii=False)
+            record["status"] = "Bản nháp cục bộ — cần đối chiếu giáo viên"
+            changed += 1
+    if changed:
+        QUESTION_DRAFTS_FILE.write_text(json.dumps(drafts, ensure_ascii=False, indent=2), encoding="utf-8")
+    return changed
 
 
 def get_approved_questions():
@@ -1214,63 +1409,16 @@ def get_quiz_variants():
 
 
 def explicit_solution_answer_labels(solution):
-    """Chỉ đọc nhãn đáp án khi lời giải tự ghi rõ theo mẫu đáng tin cậy.
-
-    Không suy luận nhãn từ văn bản giải tự do, vì điều đó dễ hiểu sai câu Toán.
-    """
-    matches = re.findall(
-        r"(?im)(?:^|\n)\s*đáp\s*án(?:\s+đúng)?\s*[:\-]?\s*\(?([A-D])\)?\s*(?:[\.;:]|$)",
-        str(solution or ""),
-    )
-    return {label.upper() for label in matches}
+    """API tương thích; logic thuần nằm trong ``variant_validation``."""
+    return _explicit_solution_answer_labels(solution)
 
 
 def validate_quiz_variant_for_student(variant):
-    """Kiểm tra điều kiện tối thiểu trước khi một biến thể đến với học sinh.
-
-    Đây là hàng rào cấu trúc, không thay thế việc giáo viên đối chiếu kiến thức
-    Toán với nguồn gốc. Khi có lỗi, app chặn phát hành thay vì đoán đáp án hoặc
-    tự sửa nội dung của giáo viên/AI.
-    """
-    if not isinstance(variant, dict):
-        return ["Biến thể không có dữ liệu câu hỏi hợp lệ."]
-    errors = []
-    question_type = str(variant.get("type") or "").strip()
-    question = str(variant.get("question") or "").strip()
-    solution = str(variant.get("solution") or "").strip()
-    if not bool(variant.get("usable")):
-        errors.append("Biến thể chưa được đánh dấu là có thể dùng.")
-    if variant.get("requires_teacher_review"):
-        errors.append("Biến thể vẫn cần giáo viên kiểm tra.")
-    if not question:
-        errors.append("Thiếu đề bài.")
-    if not solution:
-        errors.append("Thiếu lời giải để học sinh đối chiếu.")
-    if question_type not in {"multiple_choice", "short_answer"}:
-        errors.append("Dạng câu chưa hỗ trợ chấm tự động.")
-        return errors
-    if question_type == "multiple_choice":
-        options = variant.get("options")
-        if not isinstance(options, list) or len(options) != 4:
-            errors.append("Câu trắc nghiệm phải có đúng bốn lựa chọn.")
-        else:
-            cleaned = [str(option or "").strip() for option in options]
-            if not all(cleaned):
-                errors.append("Có lựa chọn trắc nghiệm đang rỗng.")
-            normalized = [normalize_text(option) for option in cleaned]
-            if len(set(normalized)) != len(normalized):
-                errors.append("Các lựa chọn trắc nghiệm bị trùng nhau.")
-        if str(variant.get("correct_answer") or "").strip().upper() not in {"A", "B", "C", "D"}:
-            errors.append("Đáp án trắc nghiệm phải là đúng một nhãn A, B, C hoặc D.")
-        else:
-            declared_labels = explicit_solution_answer_labels(solution)
-            correct_label = str(variant.get("correct_answer") or "").strip().upper()
-            if len(declared_labels) == 1 and correct_label not in declared_labels:
-                errors.append("Đáp án lưu và nhãn đáp án ghi rõ trong lời giải không khớp nhau.")
-            elif len(declared_labels) > 1:
-                errors.append("Lời giải ghi nhiều nhãn đáp án khác nhau, cần kiểm tra lại.")
-    elif not str(variant.get("correct_answer") or "").strip():
-        errors.append("Câu trả lời ngắn thiếu đáp án để chấm.")
+    """API tương thích; hàng rào thuần dữ liệu nằm trong module riêng."""
+    errors = _validate_quiz_variant_for_student(variant)
+    verification_issue = math_verification_release_issue(variant)
+    if verification_issue:
+        errors.append(verification_issue)
     return errors
 
 
@@ -1327,6 +1475,7 @@ def get_bank_quality_report():
     """
     sources = get_sources()
     candidates = get_candidates()
+    triage = triage_candidates(candidates)
     drafts = get_question_drafts()
     variants = get_quiz_variants()
     image_analyses = get_image_analyses()
@@ -1402,6 +1551,7 @@ def get_bank_quality_report():
         "drafts": draft_status,
         "variants": variant_status,
         "variant_issues": variant_issues,
+        "triage": triage,
         "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
     }
 
@@ -1415,6 +1565,90 @@ def save_quiz_variant(candidate_id, variant):
         "status": "Bản nháp trắc nghiệm — chưa dùng cho học sinh",
     }
     QUIZ_VARIANTS_FILE.write_text(json.dumps(variants, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def verify_quiz_variant_math(candidate_id, claim):
+    """Lưu kết quả verifier vào bản nháp với lịch sử, không sửa câu nguồn.
+
+    Câu đã phát hành bị từ chối ở service để không thể âm thầm đổi dữ liệu học
+    sinh đã thấy. Kết quả `CONTRADICTED`/`INCONCLUSIVE` cũng chỉ được lưu và
+    chặn phát hành, không xóa hay tự sửa đáp án.
+    """
+    variants = get_quiz_variants()
+    record = variants.get(candidate_id)
+    ok, updated_record, result = attach_math_verification(record, claim)
+    if not ok or updated_record is None:
+        return False, result
+    variants[candidate_id] = updated_record
+    QUIZ_VARIANTS_FILE.write_text(json.dumps(variants, ensure_ascii=False, indent=2), encoding="utf-8")
+    return True, result
+
+
+def render_math_verifier_review(variant_id, variant_record, variant_preview):
+    """Hiển thị form giáo viên dùng Math Verifier cho biểu thức đã được đối chiếu.
+
+    Form không tự trích LaTeX/OCR và không có nút phát hành. Giáo viên chỉ nhập
+    dữ kiện SymPy rõ ràng khi câu thật sự thuộc các dạng verifier hỗ trợ.
+    """
+    existing = variant_preview.get("math_verification") if isinstance(variant_preview, dict) else None
+    with st.expander("Xác minh Toán có cấu trúc (tùy chọn)"):
+        st.caption(
+            "Chỉ dùng khi bạn đã đối chiếu công thức với nguồn. Nhập cú pháp SymPy như `x**2`, `2*x`, "
+            "không dán LaTeX/OCR. Hình học, chứng minh hoặc đề mơ hồ vẫn cần giáo viên duyệt."
+        )
+        if isinstance(existing, dict):
+            status = str(existing.get("status") or "Chưa rõ")
+            message = str(existing.get("message") or "")
+            (st.success if status == "VERIFIED" else st.warning)(f"Kết quả đã lưu: {status}. {message}")
+            if existing.get("checked_at"):
+                st.caption(f"Kiểm tra lúc: {existing['checked_at']}")
+        choices = {
+            "Kiểm tra một nghiệm phương trình": "equation_solution",
+            "Kiểm tra đạo hàm": "derivative",
+            "Kiểm tra nguyên hàm": "antiderivative",
+            "Kiểm tra tích phân xác định": "definite_integral",
+            "Kiểm tra hai biểu thức đồng nhất": "expression_equivalence",
+        }
+        form_key = f"math_verifier_form_{variant_id}"
+        with st.form(form_key):
+            selected_label = st.selectbox("Dạng cần xác minh", list(choices), key=f"math_kind_{variant_id}")
+            kind = choices[selected_label]
+            variable = st.text_input("Biến số", value="x", key=f"math_variable_{variant_id}")
+            claim = {"kind": kind, "variable": variable.strip() or "x"}
+            if kind == "equation_solution":
+                left, right, candidate = st.columns(3)
+                claim["lhs"] = left.text_input("Vế trái", key=f"math_lhs_{variant_id}")
+                claim["rhs"] = right.text_input("Vế phải", key=f"math_rhs_{variant_id}")
+                claim["candidate"] = candidate.text_input("Nghiệm cần kiểm tra", key=f"math_candidate_{variant_id}")
+            elif kind == "derivative":
+                function, derivative = st.columns(2)
+                claim["function"] = function.text_input("Hàm số f(x)", key=f"math_function_{variant_id}")
+                claim["derivative"] = derivative.text_input("Đạo hàm được nêu", key=f"math_derivative_{variant_id}")
+            elif kind == "antiderivative":
+                integrand, antiderivative = st.columns(2)
+                claim["integrand"] = integrand.text_input("Integrand", key=f"math_integrand_{variant_id}")
+                claim["antiderivative"] = antiderivative.text_input("Nguyên hàm được nêu", key=f"math_antiderivative_{variant_id}")
+            elif kind == "definite_integral":
+                integrand, lower, upper, value = st.columns(4)
+                claim["integrand"] = integrand.text_input("Integrand", key=f"math_integrand_{variant_id}")
+                claim["lower"] = lower.text_input("Cận dưới", key=f"math_lower_{variant_id}")
+                claim["upper"] = upper.text_input("Cận trên", key=f"math_upper_{variant_id}")
+                claim["value"] = value.text_input("Giá trị được nêu", key=f"math_value_{variant_id}")
+            else:
+                left, right = st.columns(2)
+                claim["lhs"] = left.text_input("Biểu thức trái", key=f"math_lhs_{variant_id}")
+                claim["rhs"] = right.text_input("Biểu thức phải", key=f"math_rhs_{variant_id}")
+            submitted = st.form_submit_button("Kiểm tra và lưu kết quả")
+        if submitted:
+            ok, result = verify_quiz_variant_math(variant_id, claim)
+            status = str(result.get("status") or "INCONCLUSIVE")
+            message = str(result.get("message") or "Không có kết luận.")
+            if ok and status == "VERIFIED":
+                st.success(f"{status}: {message}")
+            elif status == "CONTRADICTED":
+                st.error(f"{status}: {message}")
+            else:
+                st.warning(f"{status}: {message}")
 
 
 def sync_quiz_variant_metadata():
@@ -1628,6 +1862,79 @@ def show_question_draft_preview(draft_text):
     if draft.get("requires_teacher_review"):
         st.warning("AI gắn cờ cần xem lại; app sẽ không cho duyệt tự động.")
     return draft
+
+
+def show_draft_source_comparison(candidate, candidate_id, draft_text):
+    """Hiển thị nguồn thô và bản nháp cạnh nhau trước một thao tác duyệt.
+
+    Nguồn được trình bày bằng ``st.code`` để cả ký tự lỗi/LaTeX hỏng vẫn hiện
+    nguyên vẹn.  App không biến việc hiển thị đẹp thành bằng chứng rằng công
+    thức nguồn đã đúng.
+    """
+    snapshot = build_source_review_snapshot(candidate, get_image_analyses())
+    st.markdown("#### Đối chiếu trước khi duyệt")
+    st.caption(
+        "So sánh từng dữ kiện với cột nguồn. Bước này không thay đổi tệp gốc, OCR hay nội dung bản nháp."
+    )
+    source_column, draft_column = st.columns(2)
+    with source_column:
+        st.markdown("**Nguồn đã tách**")
+        if not snapshot.get("valid"):
+            st.error("Không tìm thấy candidate nguồn tương ứng; app không cho mở khóa duyệt.")
+        else:
+            st.caption(
+                f"{snapshot['source_name']} · Câu {snapshot['question_number']} · "
+                f"{snapshot['source_file'] or 'Chưa rõ tệp'}"
+            )
+            st.markdown("Đề bài nguồn")
+            st.code(snapshot.get("question_text") or "(trống)", language=None)
+            with st.expander("Lời giải/đáp án nguồn", expanded=False):
+                st.code(snapshot.get("solution_text") or "(trống)", language=None)
+            issues = snapshot.get("source_issues") or []
+            if issues:
+                st.error("Nguồn có cờ chất lượng:\n\n" + "\n".join(f"- {issue}" for issue in issues))
+            else:
+                st.success("Chưa thấy cờ mất dữ kiện theo các kiểm tra cấu trúc. Vẫn cần giáo viên đối chiếu kiến thức Toán.")
+    with draft_column:
+        st.markdown("**Bản nháp để duyệt**")
+        parsed_draft = show_question_draft_preview(draft_text)
+
+    visuals = snapshot.get("visuals") or []
+    if visuals:
+        with st.expander(f"Mảnh ảnh/công thức nguồn ({len(visuals)})", expanded=False):
+            rows = []
+            for visual in visuals:
+                confidence = visual.get("confidence")
+                rows.append({
+                    "Mảnh nguồn": visual.get("image_name"),
+                    "Loại": visual.get("kind"),
+                    "Đã đọc": visual.get("read_status"),
+                    "Quy tắc dùng": visual.get("usage_status"),
+                    "Tin cậy": "—" if confidence is None else f"{confidence:.0%}",
+                    "Cần đối chiếu": "Có" if visual.get("needs_teacher_review") else "Không",
+                })
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+            source_file = str(snapshot.get("source_file") or "")
+            image_names = {str(visual.get("image_name")) for visual in visuals if visual.get("image_name")}
+            if source_file.lower().endswith(".docx") and image_names:
+                if st.button("Hiển thị mảnh ảnh/công thức gốc tại máy", key=f"show_source_images_{candidate_id}"):
+                    high_resolution = set(candidate.get("legacy_math_image_names") or []) if isinstance(candidate, dict) else set()
+                    images, error = get_docx_images(
+                        SOURCES_DIR / source_file,
+                        allowed_names=image_names,
+                        high_resolution_names=high_resolution,
+                    )
+                    if error:
+                        st.error(error)
+                    elif not images:
+                        st.warning("Không tìm thấy mảnh ảnh đã lập chỉ mục trong tệp Word nguồn.")
+                    else:
+                        for image in images:
+                            dpi = f" · {image['render_dpi']} DPI" if image.get("render_dpi") else ""
+                            st.image(image["data"], caption=f"{image['name']}{dpi}")
+            elif source_file.lower().endswith(".pdf"):
+                st.info("Ảnh đang thuộc PDF: dùng mục “Xem nguồn Word/PDF” phía trên để render đúng trang gốc trước khi duyệt.")
+    return snapshot, parsed_draft
 
 
 def normalize_ai_image_result(result):
@@ -2297,6 +2604,20 @@ try {
     return output_path, None
 
 
+def rendered_pdf_page_image_path(prefix, page_number):
+    """Nhận diện ảnh do các bản Poppler khác nhau đặt tên khác nhau.
+
+    Có bản đặt `-001.png`, có bản đặt `-01.png` khi chỉ render một trang.
+    Chỉ trả về tệp ảnh đủ lớn; không tìm/đoán ảnh ở prefix khác.
+    """
+    prefix = Path(prefix)
+    for suffix in (f"{page_number:03d}", f"{page_number:02d}", str(page_number)):
+        image_path = Path(f"{prefix}-{suffix}.png")
+        if image_path.exists() and image_path.stat().st_size > 512:
+            return image_path
+    return None
+
+
 def render_pdf_page_locally(pdf_path, page_number=1, dpi=200):
     """Render một trang PDF bằng Poppler; chỉ tạo ảnh tạm tại máy."""
     pdf_path = Path(pdf_path)
@@ -2312,9 +2633,8 @@ def render_pdf_page_locally(pdf_path, page_number=1, dpi=200):
     SOURCE_PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
     digest = hashlib.sha256(f"{pdf_path.resolve()}::{page_number}::{dpi}".encode("utf-8")).hexdigest()[:16]
     prefix = SOURCE_PREVIEW_DIR / f"page_{digest}"
-    # Poppler đặt hậu tố ba chữ số (vd. -001.png), không phải -1.png.
-    image_path = Path(f"{prefix}-{page_number:03d}.png")
-    if image_path.exists() and image_path.stat().st_size > 512:
+    image_path = rendered_pdf_page_image_path(prefix, page_number)
+    if image_path:
         return image_path, None
     try:
         result = subprocess.run(
@@ -2325,7 +2645,8 @@ def render_pdf_page_locally(pdf_path, page_number=1, dpi=200):
         return None, "Render trang PDF quá lâu nên app đã dừng lượt này."
     # Một số PDF có cảnh báo font/ligature nhưng vẫn tạo PNG hợp lệ. Ưu tiên
     # kiểm tra tệp đầu ra thay vì coi cảnh báo đó là lỗi render.
-    if not image_path.exists():
+    image_path = rendered_pdf_page_image_path(prefix, page_number)
+    if not image_path:
         details = (result.stderr or result.stdout or "Poppler không render được trang này.").strip().replace("\n", " ")[:400]
         return None, f"Không render được trang PDF: {details}"
     return image_path, None
@@ -2675,12 +2996,8 @@ def get_candidate_metadata(candidate_id):
 
 
 def curriculum_lesson_key(lesson):
-    """Khóa ghép bài học ổn định khi tên tệp có thêm/bớt mô tả sau số bài."""
-    text = normalize_text(str(lesson or ""))
-    number = re.search(r"\bbai\s*(\d+)\b", text)
-    if number:
-        return f"bai-{number.group(1)}"
-    return text
+    """API tương thích; logic thuần nằm trong ``curriculum_coverage``."""
+    return _curriculum_lesson_key(lesson)
 
 
 def get_curriculum_coverage(grade):
@@ -2690,102 +3007,32 @@ def get_curriculum_coverage(grade):
     Câu gốc/bản nháp vẫn được đếm riêng để giáo viên biết nơi nào có nguyên
     liệu nhưng chưa nên đưa cho học sinh.
     """
-    curriculum = load_curriculum(grade)
-    rows = []
-    for chapter_data in curriculum:
-        for lesson in chapter_data.get("lessons", []):
-            rows.append({
-                "chapter": chapter_data.get("chapter", "Chưa phân loại"),
-                "lesson": lesson,
-                "key": curriculum_lesson_key(lesson),
-                "candidates": 0,
-                "approved": 0,
-                "ready": 0,
-            })
-    by_key = {row["key"]: row for row in rows}
-    for candidate in get_candidates():
-        if candidate.get("grade") != grade:
-            continue
-        row = by_key.get(curriculum_lesson_key(candidate.get("lesson")))
-        if row:
-            row["candidates"] += 1
-    for approved in get_approved_questions():
-        metadata = get_candidate_metadata(approved.get("candidate_id"))
-        if metadata.get("grade") != grade:
-            continue
-        row = by_key.get(curriculum_lesson_key(metadata.get("lesson")))
-        if row:
-            row["approved"] += 1
-    unmapped_ready = 0
+    approved_metadata = [get_candidate_metadata(item.get("candidate_id")) for item in get_approved_questions()]
+    ready_metadata = []
     for candidate_id, record in get_quiz_variants().items():
         if record.get("status") != "Đã duyệt — sẵn sàng cho học sinh":
             continue
         metadata = record.get("metadata") or get_candidate_metadata(candidate_id)
-        if metadata.get("grade") != grade:
-            continue
         try:
             variant = json.loads(record.get("variant", ""))
         except (TypeError, json.JSONDecodeError):
             continue
         if validate_quiz_variant_for_student(variant):
             continue
-        row = by_key.get(curriculum_lesson_key(metadata.get("lesson")))
-        if row:
-            row["ready"] += 1
-        else:
-            unmapped_ready += 1
-    for row in rows:
-        if row["ready"] >= 3:
-            row["coverage"] = "Có thể luyện ngắn"
-        elif row["ready"]:
-            row["coverage"] = "Cần thêm câu đã duyệt"
-        elif row["approved"] or row["candidates"]:
-            row["coverage"] = "Có nguyên liệu, chưa phát hành"
-        else:
-            row["coverage"] = "Chưa có dữ liệu"
-    return {"grade": grade, "lessons": rows, "unmapped_ready": unmapped_ready}
+        ready_metadata.append(metadata)
+    return _build_curriculum_coverage(load_curriculum(grade), grade, get_candidates(), approved_metadata, ready_metadata)
 
 
 def get_curriculum_development_queue(grade, limit=10):
     """Xếp hàng việc cần làm để tăng số câu phát hành mà vẫn giữ hàng rào chất lượng."""
-    coverage = get_curriculum_coverage(grade)
     candidates = [item for item in get_candidates() if item.get("grade") == grade]
-    queue = []
-    for lesson_row in coverage["lessons"]:
-        if lesson_row["ready"] >= 3:
-            continue
-        lesson_candidates = [
-            item for item in candidates
-            if curriculum_lesson_key(item.get("lesson")) == lesson_row["key"]
-        ]
-        safe_text_candidates = [
-            item for item in lesson_candidates
-            if not item.get("requires_visual_review")
-            and not item.get("boundary_issue")
-            and not needs_solution_enrichment(item)
-        ]
-        if lesson_row["approved"] > lesson_row["ready"]:
-            priority, action = 0, "Kiểm tra/đóng gói các câu đã duyệt còn chưa phát hành"
-        elif safe_text_candidates:
-            priority, action = 1, "Tạo bản nháp từ câu chữ đã đủ dữ kiện, rồi giáo viên duyệt"
-        elif lesson_candidates:
-            priority, action = 2, "Xác minh hình, công thức hoặc ranh giới trước khi tạo bản nháp"
-        else:
-            priority, action = 3, "Bổ sung đề mẫu hoặc tài liệu đúng bài học"
-        queue.append({
-            "chapter": lesson_row["chapter"],
-            "lesson": lesson_row["lesson"],
-            "ready": lesson_row["ready"],
-            "approved": lesson_row["approved"],
-            "candidates": lesson_row["candidates"],
-            "safe_text_candidates": len(safe_text_candidates),
-            "action": action,
-            "priority": priority,
-        })
-    return sorted(
-        queue,
-        key=lambda item: (item["priority"], -item["approved"], -item["safe_text_candidates"], -item["candidates"], item["lesson"]),
-    )[:max(1, int(limit))]
+    safe_text_ids = {
+        item.get("candidate_id") for item in candidates
+        if not item.get("requires_visual_review")
+        and not item.get("boundary_issue")
+        and not needs_solution_enrichment(item)
+    }
+    return _build_development_queue(get_curriculum_coverage(grade), candidates, safe_text_ids, limit)
 
 
 def normalize_text(value):
@@ -3201,196 +3448,59 @@ def render_exam(bank, title, caption):
 
 
 def normalized_number(value):
-    try:
-        return float(str(value).strip().replace(",", "."))
-    except (TypeError, ValueError):
-        return None
+    """API tương thích; logic thuần nằm trong ``grading``."""
+    return _normalized_number(value)
 
 
 def short_answer_matches(submitted, expected):
-    """So khớp đáp án ngắn: ưu tiên số, sau đó so khớp LaTex đơn giản.
-
-    Học sinh không cần gõ dấu `$` hay giữ đúng khoảng trắng của công thức.
-    Các câu yêu cầu nhiều kết quả không được tạo bằng luồng đáp án ngắn cục bộ.
-    """
-    submitted_number = normalized_number(submitted)
-    expected_number = normalized_number(expected)
-    if submitted_number is not None and expected_number is not None:
-        return abs(submitted_number - expected_number) < 1e-8
-
-    def compact_math(value):
-        text = normalize_text(str(value or ""))
-        for token in ("$", "\\left", "\\right", " ", "\t", "\n", "{"):
-            text = text.replace(token, "")
-        return text.replace("}", "")
-
-    return bool(compact_math(submitted)) and compact_math(submitted) == compact_math(expected)
+    """API tương thích; logic thuần nằm trong ``grading``."""
+    return _short_answer_matches(submitted, expected)
 
 
 def grade(bank, answers):
-    details = []
-    correct_count = 0
-    total_items = 0
-    topic_results = {}
-
-    def add_result(label, topic, user_answer, correct_answer, solution, is_correct):
-        nonlocal correct_count, total_items
-        total_items += 1
-        correct_count += int(is_correct)
-        topic_results.setdefault(topic, [0, 0])
-        topic_results[topic][0] += int(is_correct)
-        topic_results[topic][1] += 1
-        details.append({"label": label, "topic": topic, "user": user_answer or "Chưa trả lời", "answer": correct_answer, "solution": solution, "correct": is_correct})
-
-    for question in bank["multiple_choice"]:
-        add_result(question["id"], question["topic"], answers.get(question["id"]), question["answer"], question["solution"], answers.get(question["id"]) == math_display_text(question["answer"]))
-    for question in bank["true_false"]:
-        for item in question["items"]:
-            add_result(item["id"], question["topic"], answers.get(item["id"]), item["answer"], item["solution"], answers.get(item["id"]) == item["answer"])
-    for question in bank["short_answer"]:
-        is_correct = short_answer_matches(answers.get(question["id"]), question["answer"])
-        add_result(question["id"], question["topic"], answers.get(question["id"]), question["answer"], question["solution"], is_correct)
-    return details, correct_count, total_items, topic_results
+    """API tương thích; chấm bài thuần nằm trong ``grading``."""
+    return _grade(bank, answers, answer_display=math_display_text, short_answer_matcher=short_answer_matches)
 
 
 def build_next_practice_recommendation(topic_results):
-    """Tạo gợi ý học tiếp từ chính lượt làm vừa nộp.
-
-    Hàm này chỉ diễn giải dữ liệu chấm bài đã có, không bịa ra năng lực hoặc
-    hứa sẽ tạo câu mới khi ngân hàng chưa có câu đã duyệt.  Kết quả được giữ
-    dạng dữ liệu thuần để dễ kiểm thử và dùng lại ở các màn hình học sau này.
-    """
-    topic_rows = []
-    for topic, result in (topic_results or {}).items():
-        try:
-            correct, total = int(result[0]), int(result[1])
-        except (IndexError, TypeError, ValueError):
-            continue
-        if total <= 0:
-            continue
-        topic_rows.append({
-            "topic": str(topic or "Dạng câu vừa làm"),
-            "correct": correct,
-            "total": total,
-            "accuracy": correct / total,
-        })
-
-    if not topic_rows:
-        return {
-            "stage": "Chưa đủ dữ liệu",
-            "focus_topics": [],
-            "message": "Làm thêm một lượt có câu được phân theo chủ đề để app tạo lộ trình chính xác hơn.",
-            "next_step": "Bắt đầu bằng một lượt luyện ngắn 3 câu.",
-            "difficulty": "Nhận biết",
-        }
-
-    topic_rows.sort(key=lambda item: (item["accuracy"], -item["total"], item["topic"]))
-    weakest = topic_rows[0]
-    weak_topics = [item for item in topic_rows if item["accuracy"] < 0.6]
-    consolidation_topics = [item for item in topic_rows if item["accuracy"] < 0.8]
-
-    if weak_topics:
-        focus_topics = [item["topic"] for item in weak_topics[:2]]
-        return {
-            "stage": "Củng cố nền tảng",
-            "focus_topics": focus_topics,
-            "message": (
-                f"Ưu tiên **{', '.join(focus_topics)}**. Em đang đúng "
-                f"{weakest['correct']}/{weakest['total']} ý ở phần này; hãy làm 3 câu cùng dạng từ cơ bản đến thông hiểu."
-            ),
-            "next_step": "Nếu làm đúng ít nhất 2/3 câu, chuyển sang 1 câu cùng chủ đề có mức cao hơn.",
-            "difficulty": "Nhận biết → Thông hiểu",
-        }
-    if consolidation_topics:
-        focus_topics = [item["topic"] for item in consolidation_topics[:2]]
-        return {
-            "stage": "Luyện chắc",
-            "focus_topics": focus_topics,
-            "message": (
-                f"Em đã có nền ở **{', '.join(focus_topics)}**, nhưng cần thêm một lượt ngắn để chắc kiến thức "
-                f"({weakest['correct']}/{weakest['total']} ý đúng ở phần thấp nhất)."
-            ),
-            "next_step": "Làm 2–3 câu có thay đổi dữ kiện; sau khi đúng ổn định, thử một câu vận dụng.",
-            "difficulty": "Thông hiểu",
-        }
-    return {
-        "stage": "Mở rộng",
-        "focus_topics": [weakest["topic"]],
-        "message": (
-            f"Em đã làm tốt các chủ đề trong lượt này. Để tiến bộ tiếp, hãy giữ **{weakest['topic']}** "
-            "làm mốc và thử một dạng khác hoặc một câu khó hơn."
-        ),
-        "next_step": "Làm 1–2 câu vận dụng; nếu sai, quay lại một câu thông hiểu để xác định đúng điểm hổng.",
-        "difficulty": "Thông hiểu → Vận dụng",
-    }
+    """API tương thích; logic thuần nằm trong ``adaptive_learning``."""
+    return _build_next_practice_recommendation(topic_results)
 
 
 def cognitive_level_band(level):
-    """Chuẩn hóa nhãn mức độ để chọn câu, vẫn giữ nguyên nhãn gốc khi hiển thị."""
-    text = normalize_text(str(level or "")).lower()
-    if "van dung cao" in text:
-        return "stretch"
-    if "van dung" in text:
-        return "advanced"
-    if "thong hieu" in text:
-        return "standard"
-    if "nhan biet" in text:
-        return "foundation"
-    return "unknown"
+    """API tương thích; logic thuần nằm trong ``adaptive_learning``."""
+    return _cognitive_level_band(level)
 
 
 def practice_difficulty_plan(accuracy=None):
-    """Quy tắc tăng/giảm độ khó có thể giải thích được cho học sinh."""
-    if accuracy is None:
-        return {
-            "code": "balanced",
-            "preferred_bands": ["foundation", "standard", "advanced", "stretch"],
-            "label": "Lượt khởi động cân bằng",
-            "message": "Chưa có đủ lịch sử ở chủ đề này, nên app chọn câu theo mức cân bằng để xác định điểm bắt đầu.",
-        }
-    if accuracy < 0.6:
-        return {
-            "code": "foundation",
-            "preferred_bands": ["foundation", "standard"],
-            "label": "Củng cố nền tảng",
-            "message": "App ưu tiên câu nhận biết và thông hiểu trước; làm chắc rồi mới tăng độ khó.",
-        }
-    if accuracy < 0.8:
-        return {
-            "code": "standard",
-            "preferred_bands": ["standard", "foundation", "advanced"],
-            "label": "Luyện chắc",
-            "message": "App ưu tiên câu thông hiểu, có thể xen một câu nền tảng hoặc vận dụng nhẹ.",
-        }
-    return {
-        "code": "advanced",
-        "preferred_bands": ["advanced", "stretch", "standard"],
-        "label": "Mở rộng độ khó",
-        "message": "App ưu tiên câu vận dụng hoặc vận dụng cao; nếu kho chưa có, sẽ dùng câu thông hiểu đã duyệt thay thế.",
-    }
+    """API tương thích; logic thuần nằm trong ``adaptive_learning``."""
+    return _practice_difficulty_plan(accuracy)
 
 
 def select_adaptive_question_ids(questions, count, plan):
-    """Lấy câu từ mức ưu tiên trước, chỉ dùng mức khác khi kho chưa đủ.
+    """API tương thích; logic thuần nằm trong ``adaptive_learning``."""
+    return _select_adaptive_question_ids(questions, count, plan)
 
-    Không lọc bỏ vĩnh viễn câu có nhãn thiếu; chúng chỉ là phương án dự phòng
-    để một kho câu còn nhỏ vẫn tạo được lượt luyện.
+
+def render_next_practice_recommendation(topic_results):
+    """Hiển thị cùng một lộ trình sau mọi lượt đã được chấm.
+
+    Hàm chỉ dùng kết quả vừa chấm; không chọn, duyệt hay thay đổi câu hỏi.
+    Nhờ đó lượt đề mẫu và lượt luyện từ biến thể đã duyệt không hướng dẫn học
+    sinh theo hai bộ quy tắc khác nhau.
     """
-    preferred_bands = list(plan.get("preferred_bands") or [])
-    rank = {band: index for index, band in enumerate(preferred_bands)}
-    groups = {}
-    for candidate_id, question in questions:
-        band = cognitive_level_band(question.get("cognitive_level"))
-        groups.setdefault(rank.get(band, len(rank)), []).append(candidate_id)
-    selected = []
-    for group_rank in sorted(groups):
-        group = groups[group_rank]
-        take = min(int(count) - len(selected), len(group))
-        if take > 0:
-            selected.extend(random.sample(group, take))
-        if len(selected) >= int(count):
-            break
-    return selected
+    recommendation = build_next_practice_recommendation(topic_results)
+    st.subheader("Lộ trình sau lượt này")
+    route_left, route_middle, route_right = st.columns(3)
+    route_left.metric("Trạng thái", recommendation["stage"])
+    route_middle.metric("Mức luyện tiếp", recommendation["difficulty"])
+    route_right.metric("Chủ đề ưu tiên", ", ".join(recommendation["focus_topics"]) or "Chưa xác định")
+    st.info(recommendation["message"])
+    st.caption(
+        recommendation["next_step"]
+        + " Khi ngân hàng có câu **đã duyệt** cùng chủ đề, em có thể vào **Làm bài** → "
+        "**Luyện câu AI đã duyệt** để luyện tiếp an toàn."
+    )
 
 
 def show_results(bank, answers, student_name, username, student_grade, study_goal):
@@ -3404,18 +3514,7 @@ def show_results(bank, answers, student_name, username, student_grade, study_goa
         with column:
             rate = result[0] / result[1]
             st.metric(topic, f"{result[0]}/{result[1]}", f"{rate:.0%} chính xác")
-    recommendation = build_next_practice_recommendation(topic_results)
-    st.subheader("Lộ trình sau lượt này")
-    route_left, route_middle, route_right = st.columns(3)
-    route_left.metric("Trạng thái", recommendation["stage"])
-    route_middle.metric("Mức luyện tiếp", recommendation["difficulty"])
-    route_right.metric("Chủ đề ưu tiên", ", ".join(recommendation["focus_topics"]) or "Chưa xác định")
-    st.info(recommendation["message"])
-    st.caption(
-        recommendation["next_step"]
-        + " Khi ngân hàng có câu **đã duyệt** cùng chủ đề, em có thể vào **Làm bài** → "
-        "**Luyện câu AI đã duyệt** để luyện tiếp an toàn."
-    )
+    render_next_practice_recommendation(topic_results)
     st.subheader("Đáp án và cách giải")
     for detail in details:
         icon = "✅" if detail["correct"] else "❌"
@@ -3531,6 +3630,7 @@ def render_approved_practice(grade=None, learning_scope="Luyện câu AI đã du
             if timed_out:
                 st.warning("Đã hết thời gian; app đã tự nộp các đáp án bạn đã làm.")
             st.success(f"Bạn đúng {correct_count}/{len(active_questions)} câu — {round(10 * correct_count / len(active_questions), 2)}/10.")
+            render_next_practice_recommendation(topic_results)
             for index, (question, is_correct) in enumerate(details, start=1):
                 with st.expander(f"{'✅' if is_correct else '❌'} Câu {index}: đáp án và lời giải"):
                     st.markdown(f"**Đáp án tham khảo:** {math_display_text(question.get('correct_answer', 'Chưa có'))}")
@@ -3854,6 +3954,30 @@ def render_quality_control():
         {"Hạng mục": "Biến thể đã sẵn sàng", "Số lượng": report["variants"]["ready"], "Ý nghĩa": "Được phép cho học sinh luyện và xuất đề"},
     ]
     st.dataframe(safety_rows, use_container_width=True, hide_index=True)
+    st.subheader("Hàng xử lý nội dung A–D")
+    st.caption(
+        "Phân nhóm này chỉ sắp thứ tự xử lý. Nhóm A vẫn phải qua bản nháp, kiểm tra cấu trúc, giáo viên duyệt và kiểm tra phát hành; "
+        "app không tự phát hành bất kỳ nhóm nào."
+    )
+    triage_counts = report["triage"]["counts"]
+    triage_columns = st.columns(4)
+    for column, group in zip(triage_columns, ("A", "B", "C", "D")):
+        column.metric(f"Nhóm {group}", triage_counts[group])
+    with st.expander("Xem hàng ưu tiên A–D"):
+        st.dataframe(
+            [
+                {
+                    "Nhóm": row["label"],
+                    "Khối": row["grade"],
+                    "Bài": row["lesson"],
+                    "Nguồn": row["source_name"],
+                    "Lý do": row["reason"],
+                }
+                for row in report["triage"]["rows"][:100]
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
     if report["variant_issues"]:
         st.subheader("Biến thể đang bị chặn")
         st.caption("Các lỗi dưới đây chỉ mô tả dữ liệu; app không tự sửa đề, đáp án hay lời giải.")
@@ -4566,7 +4690,9 @@ def main():
                 lesson_rank = development_rank.get(
                     (item.get("grade"), curriculum_lesson_key(item.get("lesson"))), 999
                 )
+                content_rank = triage_candidate(item)["rank"]
                 return (
+                    content_rank,
                     lesson_rank,
                     int(bool(item.get("boundary_issue"))),
                     int(needs_solution_enrichment(item)),
@@ -4670,6 +4796,131 @@ def main():
             if drafts:
                 st.divider()
                 st.subheader("Duyệt bản nháp AI")
+                manual_formula_overrides = {
+                    str(candidate_id): get_manual_formula_overrides(str(candidate_id))
+                    for candidate_id, record in drafts.items()
+                    if isinstance(record, dict) and record.get("provenance") in LOCAL_DRAFT_PROVENANCE
+                }
+                local_review_queue = build_local_review_queue(
+                    drafts,
+                    candidates,
+                    get_image_analyses(),
+                    manual_formula_overrides,
+                )
+                local_counts = local_review_queue["counts"]
+                local_total = sum(local_counts.values())
+                if local_total:
+                    st.markdown("#### Hàng đối chiếu nguồn cục bộ")
+                    ready_metric, visual_metric, blocked_metric, flagged_metric = st.columns(4)
+                    ready_metric.metric("Có thể đối chiếu ngay", local_counts["ready_for_comparison"])
+                    visual_metric.metric("Cần xem ảnh/MathType", local_counts["needs_visual_review"])
+                    blocked_metric.metric("Bị chặn bởi nguồn", local_counts["blocked_by_source"])
+                    flagged_metric.metric("Đã gắn cờ", local_counts["teacher_flagged"])
+                    blocked_batches = local_review_queue.get("blocked_batches") or []
+                    if blocked_batches:
+                        st.warning(
+                            f"Đã chặn theo lô {len(blocked_batches)} tệp nguồn có MathType lỗi/chồng nét. "
+                            "Các bản nháp trong lô không xuất hiện ở hàng đối chiếu cho đến khi có công thức chép lại hoặc nguồn rõ hơn."
+                        )
+                        with st.expander("Xem các lô nguồn đang bị chặn", expanded=False):
+                            st.dataframe(
+                                [
+                                    {
+                                        "Tệp nguồn": row["source_name"],
+                                        "Nháp bị chặn": row["local_draft_count"],
+                                        "Câu có mảnh lỗi": len(row["affected_candidate_ids"]),
+                                        "Lỗi nguồn": row["fatal_formula_issues"][0],
+                                    }
+                                    for row in blocked_batches
+                                ],
+                                use_container_width=True,
+                                hide_index=True,
+                            )
+                    source_batches = build_local_source_batches(local_review_queue)
+                    if source_batches:
+                        with st.expander("Gắn cờ theo tệp nguồn sau khi đã kiểm tra đại diện", expanded=False):
+                            st.caption(
+                                "Dùng khi nhiều nháp của cùng một tệp mắc cùng một lỗi đã được bạn kiểm tra. "
+                                "App chỉ gắn cờ để chặn duyệt; không xóa dữ liệu và không tự duyệt/phát hành bất kỳ câu nào."
+                            )
+                            st.dataframe(
+                                [
+                                    {
+                                        "Tệp nguồn": batch["source_name"],
+                                        "Tổng nháp": len(batch["candidate_ids"]),
+                                        "Đối chiếu ngay": batch["counts"]["ready_for_comparison"],
+                                        "Cần xem ảnh": batch["counts"]["needs_visual_review"],
+                                        "Đang bị chặn": batch["counts"]["blocked_by_source"],
+                                        "Đã gắn cờ": batch["counts"]["teacher_flagged"],
+                                        "Dấu hiệu đầu tiên": (batch["reasons"] or ["Chưa có"])[0],
+                                    }
+                                    for batch in source_batches
+                                ],
+                                use_container_width=True,
+                                hide_index=True,
+                            )
+                            source_batch_by_file = {batch["source_file"]: batch for batch in source_batches}
+                            source_batch_file = st.selectbox(
+                                "Chọn tệp nguồn đã kiểm tra",
+                                list(source_batch_by_file),
+                                format_func=lambda value: (
+                                    f"{source_batch_by_file[value]['source_name']} · "
+                                    f"{len(source_batch_by_file[value]['candidate_ids'])} nháp"
+                                ),
+                                key="local_source_batch_to_flag",
+                            )
+                            selected_source_batch = source_batch_by_file[source_batch_file]
+                            source_batch_acknowledged = st.checkbox(
+                                "Tôi đã kiểm tra lỗi đại diện và xác nhận toàn bộ nháp được chọn cùng cần chặn duyệt.",
+                                key=f"local_source_batch_ack_{source_batch_file}",
+                            )
+                            batch_category = st.selectbox(
+                                "Lý do gắn cờ cả lô",
+                                list(DECISION_LABELS),
+                                format_func=lambda value: DECISION_LABELS[value],
+                                key=f"local_source_batch_category_{source_batch_file}",
+                            )
+                            batch_note = st.text_area(
+                                "Ghi chú kiểm tra đại diện (tùy chọn)",
+                                placeholder="Ví dụ: công thức ở trang 2 bị mất nên mọi câu đã tách từ tệp này cần đối chiếu lại.",
+                                key=f"local_source_batch_note_{source_batch_file}",
+                            )
+                            if st.button(
+                                f"Gắn cờ {len(selected_source_batch['candidate_ids'])} nháp của tệp này",
+                                key=f"flag_local_source_batch_{source_batch_file}",
+                                disabled=not source_batch_acknowledged,
+                            ):
+                                ok, message = flag_local_source_batch_after_teacher_review(
+                                    source_batch_file,
+                                    selected_source_batch["candidate_ids"],
+                                    batch_category,
+                                    batch_note,
+                                )
+                                (st.success if ok else st.warning)(message)
+                                if ok:
+                                    st.rerun()
+                    with st.expander("Xem thứ tự kiểm duyệt đề xuất", expanded=False):
+                        bucket_labels = {
+                            "ready_for_comparison": "Đối chiếu ngay",
+                            "needs_visual_review": "Cần xem ảnh/MathType",
+                            "blocked_by_source": "Nguồn có cờ lỗi",
+                            "teacher_flagged": "Đã gắn cờ giáo viên",
+                            "approved": "Đã duyệt vào ngân hàng",
+                        }
+                        st.dataframe(
+                            [
+                                {
+                                    "Trạng thái": bucket_labels[row["bucket"]],
+                                    "Bài": row["lesson"],
+                                    "Nguồn": row["source_name"],
+                                    "Câu": row["question_number"],
+                                    "Lý do": row["reason"],
+                                }
+                                for row in local_review_queue["rows"]
+                            ],
+                            use_container_width=True,
+                            hide_index=True,
+                        )
                 # Put genuinely reviewable drafts first.  Raw candidate ids are
                 # stable storage keys, but are a poor interface for teachers.
                 def draft_is_reviewable(record):
@@ -4684,10 +4935,12 @@ def main():
                         return False
 
                 reviewable_ids = [candidate_id for candidate_id, record in drafts.items() if draft_is_reviewable(record)]
-                other_ids = [candidate_id for candidate_id in drafts if candidate_id not in reviewable_ids]
-                ordered_draft_ids = reviewable_ids + other_ids
+                ordered_draft_ids = prioritize_draft_ids_for_review(
+                    list(drafts), reviewable_ids, local_review_queue
+                )
                 st.caption(
-                    f"Ưu tiên {len(reviewable_ids)} bản nháp đủ điều kiện duyệt. "
+                    f"Ưu tiên {local_counts['ready_for_comparison']} bản nháp có thể đối chiếu nguồn, "
+                    f"sau đó là {len(reviewable_ids)} bản đủ điều kiện duyệt. "
                     "Các bản còn lại được giữ để đối chiếu nhưng không có nút phát hành tự động."
                 )
                 draft_candidates = {candidate_id: drafts[candidate_id] for candidate_id in ordered_draft_ids}
@@ -4710,14 +4963,68 @@ def main():
                 selected_draft_id = draft_labels[selected_draft_label]
                 selected_draft = draft_candidates[selected_draft_id]
                 st.caption(f"Trạng thái: {selected_draft.get('status')} · Tạo lúc: {selected_draft.get('created_at')}")
-                parsed_draft = show_question_draft_preview(selected_draft.get("draft", ""))
+                selected_candidate = next(
+                    (item for item in candidates if item.get("candidate_id") == selected_draft_id), {}
+                )
+                source_snapshot, parsed_draft = show_draft_source_comparison(
+                    selected_candidate, selected_draft_id, selected_draft.get("draft", "")
+                )
                 if selected_draft.get("status") != "Đã duyệt và đưa vào ngân hàng":
                     if parsed_draft and parsed_draft.get("usable") and not parsed_draft.get("requires_teacher_review"):
                         if st.button("Duyệt và đưa câu này vào ngân hàng"):
                             ok, message = approve_question_draft(selected_draft_id)
                             (st.success if ok else st.warning)(message)
+                    elif (
+                        parsed_draft
+                        and parsed_draft.get("usable")
+                        and selected_draft.get("provenance") in {"strict_local_mc_parser", "strict_local_short_answer_parser"}
+                    ):
+                        source_issues = source_snapshot.get("source_issues") or ["Không tìm thấy candidate nguồn để đối chiếu."]
+                        review_decision = selected_draft.get("review_decision")
+                        if review_decision:
+                            st.warning("Đã gắn cờ: " + review_decision_text(review_decision))
+                            if st.button("Đưa lại vào hàng đối chiếu", key=f"restore_local_review_{selected_draft_id}"):
+                                ok, message = restore_local_draft_to_review_queue(selected_draft_id)
+                                (st.success if ok else st.warning)(message)
+                                if ok:
+                                    st.rerun()
+                        elif source_issues:
+                            st.error("Không thể mở khóa duyệt: " + " ".join(source_issues))
+                        else:
+                            source_acknowledged = st.checkbox(
+                                "Tôi đã so từng dữ kiện, đáp án và lời giải của bản nháp với nguồn ở trên.",
+                                key=f"source_review_ack_{selected_draft_id}",
+                            )
+                            if st.button(
+                                "Xác nhận đối chiếu — mở khóa bước duyệt",
+                                key=f"certify_source_{selected_draft_id}",
+                                disabled=not source_acknowledged,
+                            ):
+                                ok, message = certify_local_draft_after_source_review(selected_draft_id)
+                                (st.success if ok else st.warning)(message)
+                                if ok:
+                                    st.rerun()
                     else:
                         st.info("Câu này thiếu dữ kiện hoặc cần xem lại, nên app không hiện nút duyệt.")
+                    if selected_draft.get("provenance") in {"strict_local_mc_parser", "strict_local_short_answer_parser"}:
+                        with st.expander("Không khớp nguồn? Gắn cờ để chặn duyệt", expanded=False):
+                            st.caption("Thao tác này chỉ ghi nhận quyết định kiểm duyệt, không xóa bản nháp hoặc tệp gốc. Bạn có thể khôi phục về hàng đối chiếu sau này.")
+                            category = st.selectbox(
+                                "Lý do gắn cờ",
+                                list(DECISION_LABELS),
+                                format_func=lambda value: DECISION_LABELS[value],
+                                key=f"local_flag_category_{selected_draft_id}",
+                            )
+                            note = st.text_area(
+                                "Ghi chú đối chiếu (tùy chọn)",
+                                placeholder="Ví dụ: đáp số nguồn là 8192 nhưng tổng cấp số theo đề là 8190.",
+                                key=f"local_flag_note_{selected_draft_id}",
+                            )
+                            if st.button("Gắn cờ — không duyệt câu này", key=f"flag_local_review_{selected_draft_id}"):
+                                ok, message = flag_local_draft_after_teacher_review(selected_draft_id, category, note)
+                                (st.success if ok else st.warning)(message)
+                                if ok:
+                                    st.rerun()
                 else:
                     st.success("Câu này đã ở trong ngân hàng đã duyệt.")
             approved_questions = get_approved_questions()
@@ -4827,6 +5134,8 @@ def main():
                         with st.expander("Đáp án và lời giải của biến thể"):
                             st.markdown(f"**Đáp án:** {math_display_text(variant_preview.get('correct_answer', ''))}")
                             st.markdown(math_display_text(variant_preview.get("solution", "")))
+                        if variant_record.get("status") != "Đã duyệt — sẵn sàng cho học sinh":
+                            render_math_verifier_review(variant_id, variant_record, variant_preview)
                         if variant_record.get("status") != "Đã duyệt — sẵn sàng cho học sinh":
                             if validation_errors:
                                 st.error("Chưa thể phát hành biến thể này: " + " ".join(validation_errors))
