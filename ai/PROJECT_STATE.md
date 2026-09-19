@@ -16,8 +16,8 @@ _Cập nhật: 19/09/2026. Đây là ảnh chụp từ mã nguồn, `PROJECT_REP
 
 ## Trạng thái workspace khi cập nhật
 
-- Branch hiện tại: `codex/open-source-prep-2026-09-19`, không phải `main`.
-- Workspace đã có thay đổi chưa commit trước lần tích hợp này. Không coi chúng là thay đổi của lần tích hợp và không ghi đè chúng.
+- Source đã được kiểm tra và đồng bộ an toàn trong ngày 19/09/2026. Khi cần biết branch, commit hoặc trạng thái hiện tại, luôn chạy Git (`git branch --show-current`, `git rev-parse HEAD`, `git status --short --branch`); tài liệu này không quyết định branch.
+- Khi ảnh chụp trạng thái này được tạo, workspace có thay đổi chưa commit từ trước. Không coi thay đổi chưa kiểm tra là của phiên hiện tại và không ghi đè chúng.
 - Không có thay đổi nào được phép vào database, raw OCR, tài liệu nguồn, dữ liệu học sinh, trạng thái review/approval/release hoặc API key.
 
 ## Xác minh gần nhất

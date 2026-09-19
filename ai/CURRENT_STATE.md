@@ -15,10 +15,10 @@ The previously recorded automated state was 49 pytest tests passing and
 `self_check.py` reporting `candidates=4843, ready_multiple_choice=4`. These
 are historical results, not evidence that tests pass after new changes.
 
-## This preparation task
+## Workspace note (2026-09-19)
 
-- Active branch: `codex/open-source-prep-2026-09-19`.
-- Existing user changes were present before this task and must not be rewritten.
+- The source snapshot was checked and synchronized through a separate review branch. Obtain the live branch, commit and working-tree state from Git when needed; this record must not be used as a branch selector.
+- Existing user changes were present before the preparation work and were not rewritten.
 - Shallow reference clones are present in `external/` and intentionally
   ignored by the parent Git repo.
 - No product architecture, app code, data record, API key, dependency lockfile

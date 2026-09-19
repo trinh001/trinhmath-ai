@@ -5,9 +5,9 @@
 Prepare a source-review and project-memory package so later Codex work can
 continue safely without rediscovering project context.
 
-## Completed scope
+## Completed preparation scope (historical)
 
-- Created the separate Git branch `codex/open-source-prep-2026-09-19`.
+- Used a separate working branch for the preparation work; consult Git rather than this historical note for the active branch.
 - Prepared ignored shallow clones in `external/`: Pix2Text, PaddleOCR, MinerU,
   docx.
 - Added one factual review per source and an adoption/risk overview.
