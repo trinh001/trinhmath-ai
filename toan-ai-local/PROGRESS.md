@@ -106,3 +106,9 @@ _Cập nhật: 13/09/2026_
 - Router chỉ chọn PRO theo reason code rõ ràng (complex, hai lần FAST fail, critical review); vision đi FAST theo capability hiện tại.
 - Đã thêm 10 regression tests offline. Full suite đạt **59 pytest**; self-check chạy trong staging database riêng đạt `candidates=4843, ready_multiple_choice=4`; bốn converter checks và compile/import đều PASS.
 - Rủi ro/bước kế tiếp: chưa được bật provider hay chạy pilot. Chỉ sau review PR, user authorization về key/budget/data scope và golden set sanitized mới được thiết kế transport/pilot.
+
+## Nhật ký transport guardrails — 20/09/2026
+
+- Mở rộng `ai_provider.py` bằng injected transport contract, Fake transport thuần in-memory và `UrllibDeepSeekTransport` explicit. Không có default transport/dependency mới, không gọi mạng, không dùng key thật và không nối vào `app.py`.
+- Mọi request chạy ngoài trong tương lai phải qua allow-list task class, mapping FAST/PRO, max timeout/retry/item/payload, redaction metadata và chặn payload có khóa nhạy cảm. HTTP/response lỗi hoặc JSON hỏng đều fail closed; retry bị giới hạn.
+- Bổ sung regression tests; tổng **64 pytest** PASS (15 test provider/router/transport). Self-check staging cô lập và bốn converter checks cũng PASS; không sửa database, OCR, nguồn hay trạng thái duyệt/phát hành.

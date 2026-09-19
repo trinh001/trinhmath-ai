@@ -138,3 +138,10 @@ Kết quả self-check gần nhất: `OK: candidates=4843, ready_multiple_choice
 - Không có HTTP client, API key, API call, C2C, model install hoặc thay đổi dữ liệu/content pipeline. Vì vậy app hiện hữu giữ nguyên hành vi khi provider OFF.
 - Thêm 10 test offline. Toàn bộ `toan-ai-local` đạt **59 pytest**; self-check staging cô lập đạt `candidates=4843, ready_multiple_choice=4`; converter core/parser/matching/review-storage và compile/import đều PASS.
 - Bước sau cần review PR/CI. Bất kỳ transport, key, pilot hoặc external data transfer nào đều dừng xin quyền riêng.
+
+## 11. Checkpoint transport guardrails — 20/09/2026
+
+- Phase 2 thêm contract transport được inject, Fake transport và `UrllibDeepSeekTransport` explicit; repository không có HTTP client mặc định và không gọi DeepSeek API.
+- Request tương lai phải qua feature flag, dry-run, key presence, task allow-list, model mapping, timeout/retry/item/payload bounds và secret rejection. Response sai schema/JSON hay transport failure fail closed.
+- Không đổi `app.py`, database, raw OCR, nguồn, dữ liệu học sinh, approval/release flow hoặc dependency. Full pytest đạt **64**, self-check staging và converter checks PASS.
+- Key, HTTP implementation, external data transfer, budget và pilot chưa được ủy quyền; đây là các stop condition riêng.

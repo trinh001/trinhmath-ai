@@ -4,7 +4,7 @@ Chính sách này áp dụng cho DeepSeek đang được chuẩn bị và mọi 
 
 ## Trạng thái mặc định
 
-DeepSeek **OFF**. Không có API key thật, HTTP client hay external run trong CI/repository. Chỉ đọc key từ `DEEPSEEK_API_KEY` khi người dùng cấp key và ủy quyền run thật.
+DeepSeek **OFF**. Không có HTTP client mặc định hay external run trong CI/repository. `UrllibDeepSeekTransport` chỉ được inject rõ ràng qua interface; chỉ đọc key từ `DEEPSEEK_API_KEY` khi người dùng cấp key và ủy quyền run thật.
 
 Logical profiles:
 
@@ -17,7 +17,7 @@ Mapping được cấu hình tập trung; không hard-code một tên V4.1 Pro c
 
 Phải chốt use case/model, data scope/consent/retention, budget theo batch/ngày/tháng, output schema, validation/fallback và golden-set/acceptance threshold. Trước các điều kiện này chỉ dùng local deterministic, mock/fake hoặc dry-run.
 
-Mỗi external run bắt buộc có task id, provider, logical/actual model, timestamp, dry-run, timeout, max retries, max items, request metadata đã redaction, result/error category và estimated/actual usage/cost nếu provider trả về.
+Mỗi external run bắt buộc có task id, provider, logical/actual model, timestamp, dry-run, timeout, max retries, max items, request metadata đã redaction, result/error category và estimated/actual usage/cost nếu provider trả về. Chỉ task class nằm trong allow-list, giới hạn số lượng/payload hợp lệ và response JSON schema hợp lệ mới được chạm transport.
 
 ## Không được gửi mặc định
 

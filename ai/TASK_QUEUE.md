@@ -4,13 +4,12 @@ _Cập nhật checkpoint: 20/09/2026. Trạng thái Git thật phải lấy bằ
 
 ## Đang thực hiện
 
-- Phase 1 provider abstraction/router offline đã được dựng, local verification và CI implementation checkpoint đã PASS. PR #3 chờ human review; không auto-merge.
-- Provider chưa được tích hợp vào `app.py`, chưa gọi mạng và không có key/API thật.
+- Phase 2 transport adapter guardrails đã được dựng trên branch mới từ `origin/main`; local test/diff/security gate PASS, đang chờ commit/push. Provider chưa được tích hợp vào `app.py`, chưa gọi mạng và không có key/API thật.
 
 ## Việc tiếp theo đủ điều kiện (sau checkpoint sạch)
 
-1. Review diff/CI của Phase 1. Chỉ khi PR được review, tiếp tục thiết kế transport adapter qua interface hiện có; không gọi mạng.
-2. Soạn schema/acceptance cho golden-set DeepSeek sanitized. Không tạo/import dữ liệu riêng hoặc cài model.
+1. Review diff/CI của Phase 2. Chỉ sau đó mới soạn schema/acceptance cho golden-set DeepSeek sanitized; không tạo/import dữ liệu riêng hoặc cài model.
+2. Khi có user approval cho data scope/budget/key, tạo plan pilot 5–20 task; không gọi API trước stop condition đó.
 3. Giáo viên đối chiếu draft parser cục bộ với nguồn; công thức/hình chưa rõ vẫn `BLOCK + REQUIRE TEACHER REVIEW`.
 4. Khi có đủ câu approved theo bài, kiểm thử end-to-end student flow không đổi trạng thái phát hành tự động.
 

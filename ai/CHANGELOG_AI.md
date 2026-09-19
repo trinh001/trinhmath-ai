@@ -1,5 +1,12 @@
 # Nhật ký thay đổi bộ nhớ AI
 
+## 2026-09-20 — Phase 2 injected transport guardrails
+
+- `DeepSeekProvider` nay có injected transport contract, `FakeDeepSeekTransport` và `UrllibDeepSeekTransport` explicit. HTTP transport không được tạo mặc định; test dùng fake opener, nên repository/CI không có API call.
+- Mọi outbound attempt phải qua feature flag, dry-run, API-key presence, model mapping, task-class allow-list, timeout/retry/item/payload bounds và sensitive-payload rejection. Response phải là JSON mapping hợp lệ; retry chỉ theo giới hạn request.
+- Không thay đổi `app.py`, data/OCR/database, release flow hay cấu hình key. Phase này chưa đủ điều kiện để yêu cầu `DEEPSEEK_API_KEY`.
+- PASS local: 15 provider/router/transport tests; 64 full pytest; isolated self-check; converter compile/test suite; `git diff --check` và secret scan. Commit/push/CI Phase 2 đang chờ thực hiện.
+
 ## 2026-09-20 — Phase 1 DeepSeek offline provider/router
 
 - Active workflow is GPT -> Codex -> DeepSeek FAST/PRO; Qwen was removed from the active roadmap, task queue and provider prompt.

@@ -38,10 +38,12 @@ Qwen không thuộc active architecture và không có adapter hay task phụ th
 - Router FAST/PRO deterministic, có reason code và không chọn PRO cho vision theo capability hiện tại.
 - Hoàn thành khi: unit tests offline và app regression tests PASS; CI không cần key/network.
 
-## Phase 2 — Chuẩn bị DeepSeek adapter, chưa gọi mạng
+## Phase 2 — DeepSeek transport adapter an toàn, chưa gọi mạng
 
-- Chỉ sau review Phase 1: thiết kế transport qua interface hiện có; key chỉ từ `DEEPSEEK_API_KEY`.
+- Transport được inject qua interface riêng; `UrllibDeepSeekTransport` chỉ là implementation explicit, không được tạo mặc định, nên chỉ đặt environment không thể tự gửi request.
+- Key chỉ từ `DEEPSEEK_API_KEY` khi một run thật đã được user ủy quyền.
 - Profiles logic: `deepseek-fast`, `deepseek-pro`; feature flag, dry-run, timeout, retries, max-items, task id và usage/cost guard bắt buộc.
+- Chỉ task class allow-list, logical/actual model mapping, payload không secret và response JSON hợp lệ mới có thể tới injected transport; mọi lỗi fail closed.
 - Không có key thật hay API call trong repository/CI. Khi cần API key hoặc test có chi phí, dừng xin phép.
 
 ## Phase 3 — Pilot có kiểm soát
