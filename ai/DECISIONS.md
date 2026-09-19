@@ -13,6 +13,7 @@
 | 2026-09-20 | Supersede the active Qwen role: active architecture is GPT -> Codex -> DeepSeek FAST/PRO. | Qwen has no active adapter/task/roadmap. It can only be reconsidered through a new decision and benchmark. |
 | 2026-09-20 | Implement provider abstraction as offline-only contract before any transport. | DeepSeek starts OFF, has no HTTP client, reads no key unless explicitly enabled, and all failure states fail closed. |
 | 2026-09-20 | Use an injected transport contract with Fake transport only for Phase 2. | No default HTTP implementation is shipped; all future network code needs a separate review, user authorization and existing guardrails. |
+| 2026-09-20 | Prepare pilot with synthetic fixture and policy gates before any external run. | The runner is separate from the app, defaults OFF/kill-switch ON and rejects missing config, unsafe data or budget violations without transport calls. |
 
 All source/license decisions require a fresh check at the exact version used in
 a release. This log is technical preparation, not legal advice.
