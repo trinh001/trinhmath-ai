@@ -20,7 +20,7 @@ Commit/push checkpoint an toàn để cập nhật PR #3, rồi theo dõi CI; kh
 
 ## LAST SAFE COMMIT
 
-`2a390e8` — base checkpoint trước Phase 1; lấy SHA hiện hành bằng `git log -1 --format=%H` sau commit.
+`ef99071` — implementation checkpoint đã qua full local verification; lấy SHA hiện hành bằng `git log -1 --format=%H` trước khi tiếp tục.
 
 ## TEST STATUS
 
