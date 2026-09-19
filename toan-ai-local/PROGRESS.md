@@ -98,3 +98,11 @@ _Cập nhật: 13/09/2026_
 - Chỉ chuẩn hóa quy ước bàn giao và bộ nhớ dự án tại `ai/`; không thay đổi code, database, raw OCR, nguồn, dữ liệu học sinh hoặc trạng thái review/phát hành.
 - Bổ sung ignore cho `question_candidates_triaged.json` vì đây là dữ liệu kho đề dẫn xuất cục bộ, không phù hợp GitHub.
 - Xác minh lại an toàn: self-check trong bản sao tạm cô lập đạt `candidates=4843, ready_multiple_choice=4`; 49 pytest của `toan-ai-local` và bốn test của Converter đều PASS.
+
+## Nhật ký provider offline — 20/09/2026
+
+- Thêm `ai_provider.py` và `model_router.py` độc lập; không sửa `app.py`, database, raw OCR, nguồn, question bank hay trạng thái review/phát hành.
+- DeepSeek mặc định OFF; hợp đồng có FAST/PRO logical aliases, guard dry-run/timeout/retry/max-items/task id/usage metadata, Fake provider và fail-closed khi disabled, thiếu key hoặc output không hợp lệ. Chưa có HTTP transport, API key hay API call.
+- Router chỉ chọn PRO theo reason code rõ ràng (complex, hai lần FAST fail, critical review); vision đi FAST theo capability hiện tại.
+- Đã thêm 10 regression tests offline. Full suite đạt **59 pytest**; self-check chạy trong staging database riêng đạt `candidates=4843, ready_multiple_choice=4`; bốn converter checks và compile/import đều PASS.
+- Rủi ro/bước kế tiếp: chưa được bật provider hay chạy pilot. Chỉ sau review PR, user authorization về key/budget/data scope và golden set sanitized mới được thiết kế transport/pilot.

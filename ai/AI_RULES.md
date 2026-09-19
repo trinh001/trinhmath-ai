@@ -6,8 +6,7 @@
 | --- | --- | --- |
 | GPT | planner and reviewer; turns discussion into a bounded handoff | does not silently alter the repository or approve mathematics/content |
 | Codex | primary coder; reads project context, makes minimal changes, tests and reports evidence | does not call paid APIs, commit secrets, overwrite data or release questions |
-| DeepSeek | batch reviewer/backup; may assist with structured text review when explicitly approved | does not replace OCR evidence, teacher review or Math Verifier |
-| Qwen | optional vision/backup candidate | evaluate only through a controlled benchmark; it is not mandatory |
+| DeepSeek | FAST backup/batch/vision or PRO escalation only when explicitly enabled | does not replace OCR evidence, teacher review or Math Verifier |
 | Teacher | final authority over source, formulae, solutions, answers and release | never delegate final approval to a model |
 
 ## Required behaviour
@@ -44,7 +43,7 @@ or unreviewed question content in a handoff.
 
 ## Multi-provider activation
 
-- DeepSeek/Qwen/external providers mặc định OFF.
+- DeepSeek và mọi external provider mặc định OFF.
 - Trước khi bật phải đọc `ai/PROVIDER_POLICY.md`.
 - Không provider nào được nhận secret, dữ liệu học sinh hoặc toàn kho tài liệu theo mặc định.
 - Provider code về sau phải có feature flag, dry-run, cost/batch guard và test không cần network.

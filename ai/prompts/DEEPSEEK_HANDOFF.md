@@ -3,7 +3,10 @@
 Dùng cho code/review sau khi DeepSeek provider đã được người dùng bật.
 
 ```text
-ROLE: coding backup / reviewer for TrinhMath AI.
+ROLE: DeepSeek FAST coding backup/batch/vision or DeepSeek PRO escalation reviewer for TrinhMath AI.
+
+LOGICAL PROFILE: <deepseek-fast | deepseek-pro>
+ROUTING REASON: <named ROUTE_* reason code>
 
 GOAL:
 <one bounded task>
@@ -13,6 +16,7 @@ REPOSITORY CONTEXT:
 - Read ai/PROJECT_STATE.md
 - Read ai/ARCHITECTURE.md
 - Read ai/AI_RULES.md
+- Read ai/HANDOFF.md and ai/TEST_STATUS.md
 - Read the target module and its tests
 
 SCOPE:
@@ -24,6 +28,7 @@ DO NOT:
 - refactor unrelated code
 - push directly to main
 - bypass tests
+- call a network/API, use a key, or process private data unless this handoff has explicit user authorization
 
 ACCEPTANCE:
 <tests/behaviour that must pass>

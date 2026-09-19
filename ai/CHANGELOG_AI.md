@@ -1,5 +1,17 @@
 # Nhật ký thay đổi bộ nhớ AI
 
+## 2026-09-20 — Phase 1 DeepSeek offline provider/router
+
+- Active workflow is GPT -> Codex -> DeepSeek FAST/PRO; Qwen was removed from the active roadmap, task queue and provider prompt.
+- Added standalone `ai_provider.py` and `model_router.py`: aliases FAST/PRO, configurable mappings, OFF-by-default feature flag, Fake provider, dry-run and fail-closed result handling. No HTTP client, API key, API call or app integration was added.
+- Added deterministic routing with explicit codes for default, vision, complex, two FAST failures and critical review. PRO is not routed for vision.
+- Standardized persistent handoff, active task, test status, provider policy and continuous runbook for future sessions.
+
+### Xác minh
+
+- PASS: 59 `toan-ai-local` tests, including 10 offline provider/router tests; isolated self-check; converter checks; Python compile/import.
+- PASS local final gate: `git diff --check` và quét tracked files không thấy secret/token/key có độ tin cậy cao. CI vẫn chờ branch được push.
+
 ## 2026-09-19 — Đánh giá gói “GPT nghĩ – Codex làm”
 
 - Đã kiểm kê gói “GPT nghĩ – Codex làm” được cung cấp cục bộ như một ứng dụng Node/TypeScript bên ngoài.

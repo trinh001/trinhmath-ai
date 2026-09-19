@@ -1,30 +1,41 @@
-# Handoff for the next Codex task
+# TrinhMath AI — Persistent handoff
 
-Start by reading, in order:
+Đọc `AGENTS.md`, `ai/PROJECT_STATE.md`, `ai/CURRENT_TASK.md`, `ai/TASK_QUEUE.md`, `ai/DECISIONS.md`, `ai/TEST_STATUS.md`, tài liệu provider liên quan và Git state trước khi hành động. Không đưa secret, private source/OCR, database hay student data vào handoff.
 
-1. `AGENTS.md`
-2. `ai/PROJECT_CONTEXT.md`, `ai/ARCHITECTURE.md`, `ai/CURRENT_STATE.md`
-3. `ai/DECISIONS.md`, `ai/AI_RULES.md`, `ai/TEST_STATUS.md`
-4. `docs/open-source/OVERVIEW.md` and the one source review relevant to the task
-5. the target module, its tests and current Git diff
+## LAST COMPLETED
 
-## Safe next handoff prompt
+Đã dựng provider abstraction offline, Fake provider và router FAST/PRO với unit tests. Không có DeepSeek HTTP transport, API call, key, C2C hay Qwen adapter.
 
-```text
-Read AGENTS.md and ai/*.md first. Plan a local-only benchmark of Pix2Text and
-PaddleOCR using a teacher-approved non-private golden set. Do not install any
-package, download models, call paid/remote APIs, alter OCR/provider code, touch
-source records, or release questions. Return only: proposed contract, benchmark
-schema, measurements, file plan, license/privacy risks, test plan and decisions
-that require approval.
-```
+## CURRENT STATE
 
-## Guardrails
+Phase 1 local verification đã PASS và đang ở checkpoint commit/push. App vẫn không import hay gọi provider mới; feature flag DeepSeek mặc định OFF.
 
-- Preserve raw source/OCR and every review decision; do not mutate approval or
-  release state in bulk.
-- Keep source clones in `external/` out of Git and out of runtime imports.
-- Never include API keys, database files, source documents, learner data or
-  local machine state in commits, tests or prompts.
-- Stop for a human decision before installing models, enabling a remote/VLM
-  path, spending API credits, changing data schema or changing release logic.
+## ACTIVE TASK
+
+Commit/push checkpoint an toàn để cập nhật PR #3, rồi theo dõi CI; không merge.
+
+## ACTIVE BRANCH
+
+`codex-continuous-plan-2026-09-19` tại thời điểm checkpoint này. Luôn kiểm tra bằng `git branch --show-current` trước khi tiếp tục.
+
+## LAST SAFE COMMIT
+
+`2a390e8` — base checkpoint trước Phase 1; lấy SHA hiện hành bằng `git log -1 --format=%H` sau commit.
+
+## TEST STATUS
+
+Provider/router: PASS (10); full `toan-ai-local`: PASS (59); isolated self-check và converter checks: PASS. Xem `ai/TEST_STATUS.md`.
+
+## KNOWN RISKS
+
+- Provider interface chưa có transport có chủ ý; run thật cần key, data/budget approval và separate review.
+- Current content counts và historical self-check không phải truy vấn live.
+- Math/image ambiguity vẫn bắt buộc teacher review.
+
+## BLOCKERS
+
+Không có blocker kỹ thuật cho verification local. API key/network/pilot là stop condition và chưa được ủy quyền.
+
+## NEXT EXACT ACTION
+
+Chạy một lượt `git diff --check`, review staged diff, rồi commit/push branch PR. Sau push, kiểm tra CI. Không merge `main`.

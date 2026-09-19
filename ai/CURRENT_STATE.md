@@ -15,6 +15,14 @@ The previously recorded automated state was 49 pytest tests passing and
 `self_check.py` reporting `candidates=4843, ready_multiple_choice=4`. These
 are historical results, not evidence that tests pass after new changes.
 
+## Provider checkpoint (2026-09-20)
+
+- A standalone, OFF-by-default DeepSeek provider contract and deterministic
+  FAST/PRO router now exist. They are not wired into the app and contain no
+  HTTP transport or credential.
+- The current offline suite reports 59 passing `toan-ai-local` tests; isolated
+  self-check and converter checks passed. See `ai/TEST_STATUS.md` for details.
+
 ## Workspace note (2026-09-19)
 
 - The source snapshot was checked and synchronized through a separate review branch. Obtain the live branch, commit and working-tree state from Git when needed; this record must not be used as a branch selector.

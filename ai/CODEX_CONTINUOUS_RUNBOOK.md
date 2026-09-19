@@ -8,14 +8,17 @@ Tiếp tục TrinhMath AI theo chế độ continuous execution.
 Đọc theo thứ tự:
 1. AGENTS.md
 2. ai/PROJECT_STATE.md
-3. ai/ARCHITECTURE.md
-4. ai/AI_RULES.md
-5. ai/MULTI_AI_WORKFLOW.md
-6. ai/PROVIDER_POLICY.md
-7. ai/MASTER_EXECUTION_PLAN.md
-8. ai/TASK_QUEUE.md
-9. ai/TEST_STATUS.md
-10. git status + git log + diff hiện tại
+3. ai/CURRENT_TASK.md
+4. ai/ARCHITECTURE.md
+5. ai/AI_RULES.md
+6. ai/MULTI_AI_WORKFLOW.md
+7. ai/PROVIDER_POLICY.md
+8. ai/MASTER_EXECUTION_PLAN.md
+9. ai/TASK_QUEUE.md
+10. ai/DECISIONS.md
+11. ai/TEST_STATUS.md
+12. ai/HANDOFF.md
+13. git status + git log + diff hiện tại
 
 Sau đó:
 - xác định phase hiện tại;
@@ -25,7 +28,7 @@ Sau đó:
 - làm theo lát cắt nhỏ;
 - thêm/điều chỉnh test;
 - chạy test liên quan và rộng hơn;
-- cập nhật TASK_QUEUE/TEST_STATUS;
+- cập nhật TASK_QUEUE/TEST_STATUS/HANDOFF và CHANGELOG_AI khi phù hợp;
 - commit/push trên branch riêng;
 - tạo PR nếu checkpoint đủ lớn;
 - tiếp tục task kế tiếp nếu không có blocker.
@@ -47,9 +50,12 @@ Không tự approve/release câu hỏi.
 Không gửi database/student data/raw source hàng loạt ra external provider.
 
 Cuối mỗi checkpoint, báo:
+PHASE:
 DONE:
 FILES:
 TESTS:
+CURRENT ROUTING:
+COST/API CALLS:
 RISKS:
 BLOCKERS:
 NEXT:

@@ -130,3 +130,11 @@ Kết quả self-check gần nhất: `OK: candidates=4843, ready_multiple_choice
 - Không sao chép source, config, script, dependency, test, tunnel hay OAuth của gói vào repository. Chỉ tiếp nhận mô hình bàn giao có kiểm soát bằng các tài liệu `ai/PROJECT_STATE.md`, `ai/TASK_QUEUE.md`, `ai/GPT_TO_CODEX.md`, `ai/CHANGELOG_AI.md` và mẫu handoff.
 - Giữ nguyên `ai/ARCHITECTURE.md` và `ai/AI_RULES.md` đã có vì chúng phản ánh đúng kiến trúc/giới hạn hiện tại. Bổ sung ignore cho `toan-ai-local/question_candidates_triaged.json`, dữ liệu dẫn xuất cục bộ không phù hợp GitHub.
 - Kiểm tra 19/09/2026: self-check chạy trên bản sao tạm cô lập PASS (`candidates=4843, ready_multiple_choice=4`); 49 pytest của `toan-ai-local`, bốn script test của `math-document-converter` và compile/import Python đều PASS. Không dùng API trả phí và không sửa database, raw OCR, nguồn hoặc dữ liệu học sinh.
+
+## 10. Checkpoint provider offline — 20/09/2026
+
+- Workflow active được chuẩn hóa thành GPT → Codex → DeepSeek FAST/PRO. Qwen không nằm trong roadmap/provider active; không có Qwen adapter hay task phụ thuộc nó.
+- Bổ sung hai module thuần `toan-ai-local/ai_provider.py` và `toan-ai-local/model_router.py`, tách khỏi `app.py`. Provider có feature flag OFF mặc định, aliases FAST/PRO có mapping cấu hình, Fake provider, dry-run/cost guard metadata và fail-closed khi disabled/missing key/malformed output.
+- Không có HTTP client, API key, API call, C2C, model install hoặc thay đổi dữ liệu/content pipeline. Vì vậy app hiện hữu giữ nguyên hành vi khi provider OFF.
+- Thêm 10 test offline. Toàn bộ `toan-ai-local` đạt **59 pytest**; self-check staging cô lập đạt `candidates=4843, ready_multiple_choice=4`; converter core/parser/matching/review-storage và compile/import đều PASS.
+- Bước sau cần review PR/CI. Bất kỳ transport, key, pilot hoặc external data transfer nào đều dừng xin quyền riêng.

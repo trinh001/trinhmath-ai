@@ -1,65 +1,34 @@
 # Provider activation policy
 
-Tài liệu này áp dụng cho DeepSeek, Qwen và mọi provider AI bên ngoài sau này.
+Chính sách này áp dụng cho DeepSeek đang được chuẩn bị và mọi provider ngoài có thể được xem xét trong tương lai. Qwen không phải provider active.
 
 ## Trạng thái mặc định
 
-Mọi provider ngoài hiện là **OFF** cho tới khi người dùng bật rõ ràng. Repository không chứa API key thật.
+DeepSeek **OFF**. Không có API key thật, HTTP client hay external run trong CI/repository. Chỉ đọc key từ `DEEPSEEK_API_KEY` khi người dùng cấp key và ủy quyền run thật.
 
-## Trước khi bật một provider
+Logical profiles:
 
-Phải chốt đủ:
+- `deepseek-fast`: `FAST` -> `deepseek-flash` mặc định.
+- `deepseek-pro`: `PRO` -> `deepseek-v4-pro` mặc định.
 
-1. Use case cụ thể.
-2. Model cụ thể hoặc tiêu chí chọn model.
-3. Dữ liệu nào được phép gửi ra ngoài.
-4. Dữ liệu nào tuyệt đối không được gửi.
-5. Retention/privacy đã chấp nhận.
-6. Budget cho một batch và budget ngày/tháng.
-7. Timeout/retry/rate-limit policy.
-8. Schema output.
-9. Validation + fallback.
-10. Golden set / acceptance threshold.
+Mapping được cấu hình tập trung; không hard-code một tên V4.1 Pro chưa có xác nhận.
 
-## Secret
+## Điều kiện trước external run
 
-- Chỉ đọc từ environment hoặc secret store cục bộ.
-- Không ghi API key vào Markdown, JSON tracked, source code, log hoặc GitHub issue/PR.
-- Tên biến môi trường được phép commit; giá trị thật thì không.
-- Nếu phát hiện secret bị track: dừng integration, rotate key rồi mới làm tiếp.
+Phải chốt use case/model, data scope/consent/retention, budget theo batch/ngày/tháng, output schema, validation/fallback và golden-set/acceptance threshold. Trước các điều kiện này chỉ dùng local deterministic, mock/fake hoặc dry-run.
 
-## Data classes
+Mỗi external run bắt buộc có task id, provider, logical/actual model, timestamp, dry-run, timeout, max retries, max items, request metadata đã redaction, result/error category và estimated/actual usage/cost nếu provider trả về.
 
-### Có thể gửi sau khi được duyệt
-- prompt kỹ thuật không chứa dữ liệu riêng;
-- source code công khai/được phép;
-- candidate đã được sanitize;
-- ảnh/công thức trong golden set được giáo viên cho phép.
+## Không được gửi mặc định
 
-### Không gửi mặc định
-- database học sinh;
-- thông tin cá nhân;
-- toàn bộ kho tài liệu nguồn;
-- raw OCR hàng loạt;
-- API key/token;
-- file backup;
-- dữ liệu chưa rõ quyền sử dụng.
-
-## Cost guard
-
-Provider adapter sau này phải hỗ trợ tối thiểu:
-- max items;
-- max retries;
-- timeout;
-- dry-run;
-- estimate/log usage;
-- kill switch;
-- feature flag per task class.
+- Student database/PII, API key/token, login state;
+- whole private source bank, raw OCR hàng loạt, ảnh/tài liệu nguồn chưa được phép;
+- backup ZIP, câu chưa rõ quyền, hoặc dữ liệu được giáo viên đánh dấu chặn.
 
 ## Failure policy
 
-- API lỗi/rate limit: không đổi trạng thái candidate sang approved.
-- JSON sai: reject/normalize theo schema; không đoán.
-- confidence cao không thay thế validation.
-- provider disagreement: chuyển review queue.
-- model/version thay đổi: benchmark lại trước batch lớn.
+Missing key, disabled flag, malformed result, timeout/rate limit hoặc provider disagreement đều fail closed: không đổi candidate thành approved/released, không tự đoán/normalize thành fact và đưa item vào review khi cần. Không log secret.
+
+## Cost guard
+
+Không gửi mặc định 11k trang. Luồng luôn là local deterministic -> local OCR/parser -> FAST khi thật sự cần -> PRO chỉ theo router. Pilot sau này chỉ 5–20 task sanitized và phải đo quality, failure, retries, latency, usage/cost trước khi mở rộng.

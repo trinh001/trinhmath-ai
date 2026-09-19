@@ -1,45 +1,25 @@
 # Hàng đợi công việc TrinhMath AI
 
-## Trạng thái hiện tại
+_Cập nhật checkpoint: 20/09/2026. Trạng thái Git thật phải lấy bằng Git, không suy ra từ file này._
 
-- Đánh giá gói tham khảo `codex-with-chatgpt-main` và chuẩn hóa bộ nhớ dự án GPT → Codex đã hoàn tất. Không đưa Node bridge, tunnel, OAuth hoặc dependency của gói vào hai ứng dụng TrinhMath.
+## Đang thực hiện
 
-## Việc tiếp theo đã có căn cứ
+- Phase 1 provider abstraction/router offline đã được dựng và local verification đã PASS; checkpoint đang chờ commit/push để cập nhật PR #3.
+- Provider chưa được tích hợp vào `app.py`, chưa gọi mạng và không có key/API thật.
 
-1. Giáo viên đối chiếu một nhóm draft parser cục bộ với tài liệu nguồn; công thức/hình chưa rõ phải tiếp tục `BLOCK + REQUIRE TEACHER REVIEW`.
-2. Khi có nguồn hoặc bản chép tay rõ, kiểm tra một nhóm MathType/hình theo luồng ảnh → công thức → draft → review; không suy đoán công thức.
-3. Khi có đủ câu đã duyệt theo bài, kiểm thử một lượt học sinh hoàn chỉnh: chọn phạm vi → làm → nộp → bản đồ chủ đề → đề xuất luyện tiếp.
-4. Trước bất kỳ thay đổi OCR provider nào, lập golden set được giáo viên cho phép và benchmark cục bộ; không cài model hoặc gọi API tính phí chỉ để thử.
+## Việc tiếp theo đủ điều kiện (sau checkpoint sạch)
 
-## Không tự đưa vào hàng đợi triển khai
+1. Review diff/CI của Phase 1. Chỉ khi PR được review, tiếp tục thiết kế transport adapter qua interface hiện có; không gọi mạng.
+2. Soạn schema/acceptance cho golden-set DeepSeek sanitized. Không tạo/import dữ liệu riêng hoặc cài model.
+3. Giáo viên đối chiếu draft parser cục bộ với nguồn; công thức/hình chưa rõ vẫn `BLOCK + REQUIRE TEACHER REVIEW`.
+4. Khi có đủ câu approved theo bài, kiểm thử end-to-end student flow không đổi trạng thái phát hành tự động.
 
-- Không cài hoặc vận hành `codex-with-chatgpt`: đây là công cụ tích hợp bên ngoài có Cloudflare tunnel/OAuth, không phải một nhu cầu đã được phê duyệt của TrinhMath.
-- Không tự triển khai cloud, migration database, thay đổi phân quyền hoặc phát hành nội dung.
+## Chưa được tự triển khai
 
+- Không cài/vận hành C2C, Cloudflare tunnel, OAuth hoặc Node bridge.
+- Không cài/vận hành DeepSeek/Qwen, không gọi paid API và không đặt key/budget.
+- Không deploy cloud, migration database, thay đổi quyền, hay phát hành nội dung.
 
-## Multi-AI framework (19/09/2026)
+## Quy tắc xếp hàng
 
-Khung GPT → Codex → DeepSeek/Qwen đã được thiết kế ở mức tài liệu và policy, chưa bật API:
-
-1. Đọc `ai/MULTI_AI_WORKFLOW.md` và `ai/PROVIDER_POLICY.md` trước khi tích hợp provider.
-2. DeepSeek là fallback/reviewer/coder phụ; không tự merge hoặc phát hành nội dung.
-3. Qwen chỉ được thử trên golden set trước khi dùng cho batch Toán/tài liệu.
-4. Việc triển khai adapter provider phải có feature flag mặc định OFF, dry-run, giới hạn batch/retry/timeout và log usage/cost.
-5. Chưa thêm API key hoặc gọi dịch vụ trả phí cho tới khi người dùng chọn provider/model và budget.
-
-
-## Continuous execution plan
-
-Nguồn điều phối dài hạn:
-- `ai/MASTER_EXECUTION_PLAN.md`
-- `ai/CODEX_CONTINUOUS_RUNBOOK.md`
-
-### Phase hiện tại
-Phase 0 → đồng bộ local với `origin/main`, sau đó Phase 1 → provider abstraction offline, chưa gọi mạng.
-
-### Task kế tiếp cho Codex
-1. Đồng bộ local main với GitHub main mới nhất.
-2. Tạo branch implementation riêng.
-3. Xây provider abstraction + mock provider + feature flag OFF.
-4. Viết test không-network.
-5. Chỉ sau khi Phase 1 PASS mới sang DeepSeek adapter.
+Ưu tiên task reversible, local-first, có test độc lập và không đụng source/OCR/student data. Dừng khi chạm stop condition trong `AGENTS.md` hoặc `ai/PROVIDER_POLICY.md`.
