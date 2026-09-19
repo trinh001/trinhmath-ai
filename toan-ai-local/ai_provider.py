@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 from urllib import request as urllib_request
+from urllib import error as urllib_error
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Protocol, Sequence
 
@@ -82,6 +83,7 @@ class ProviderRequest:
     timeout_seconds: int
     max_retries: int
     max_items: int
+    max_output_tokens: int
     dry_run: bool
     task_id: str
     request_metadata: Mapping[str, Any] = field(default_factory=dict)
@@ -147,6 +149,7 @@ class DeepSeekConfig:
     max_timeout_seconds: int = 60
     max_retries: int = 2
     max_items: int = 20
+    max_output_tokens: int = 2_048
     max_payload_bytes: int = 131_072
 
     @classmethod
@@ -200,9 +203,13 @@ class UrllibDeepSeekTransport:
     def send(self, *, endpoint: str, headers: Mapping[str, str], body: Mapping[str, Any], timeout_seconds: int) -> TransportResponse:
         encoded = json.dumps(body, ensure_ascii=False).encode("utf-8")
         request = urllib_request.Request(endpoint, data=encoded, headers=dict(headers), method="POST")
-        with self._opener(request, timeout=timeout_seconds) as response:
-            status_code = response.getcode()
-            raw_body = response.read()
+        try:
+            with self._opener(request, timeout=timeout_seconds) as response:
+                status_code = response.getcode()
+                raw_body = response.read()
+        except urllib_error.HTTPError as error:
+            status_code = error.code
+            raw_body = error.read()
         try:
             response_body = json.loads(raw_body.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -271,6 +278,8 @@ class DeepSeekProvider:
             return ERROR_REQUEST_NOT_ALLOWED
         if not 1 <= request.max_items <= self.config.max_items:
             return ERROR_REQUEST_NOT_ALLOWED
+        if not 1 <= request.max_output_tokens <= self.config.max_output_tokens:
+            return ERROR_REQUEST_NOT_ALLOWED
         if _has_sensitive_key(request.payload):
             return ERROR_SENSITIVE_PAYLOAD
         try:
@@ -285,6 +294,8 @@ class DeepSeekProvider:
             "model": request.actual_model,
             "messages": request.payload.get("messages"),
             "reasoning_effort": request.reasoning_effort,
+            "max_tokens": request.max_output_tokens,
+            "response_format": {"type": "json_object"},
         }
         if not _valid_messages(body["messages"]):
             return ProviderResult(status=RESULT_REJECTED, error_category=ERROR_REQUEST_NOT_ALLOWED, **common)

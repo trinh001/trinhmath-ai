@@ -92,10 +92,14 @@ def test_budget_and_item_limits_reject_the_whole_pilot_before_calls():
     over_items = DeepSeekPilotRunner(provider(transport), policy(min_tasks=1, max_items_per_task=5)).run([too_many_items])
     over_payload = DeepSeekPilotRunner(provider(transport), policy(min_tasks=1, max_payload_bytes=20)).run([oversized_payload])
     over_tokens = DeepSeekPilotRunner(provider(transport), policy(min_tasks=1, max_estimated_input_tokens_per_task=5)).run([oversized_tokens])
+    invalid_output_cap = DeepSeekPilotRunner(provider(transport), policy(max_output_tokens=0)).run(sample_tasks())
+    over_total_cap = DeepSeekPilotRunner(provider(transport), policy(max_estimated_total_tokens=100)).run(sample_tasks())
     assert (over_tasks.status, over_tasks.error_category) == (PILOT_REJECTED, ERROR_MAX_TASKS)
     assert (over_items.status, over_items.error_category) == (PILOT_REJECTED, ERROR_MAX_ITEMS)
     assert (over_payload.status, over_payload.error_category) == (PILOT_REJECTED, ERROR_MAX_PAYLOAD)
     assert (over_tokens.status, over_tokens.error_category) == (PILOT_REJECTED, ERROR_MAX_TOKENS)
+    assert (invalid_output_cap.status, invalid_output_cap.error_category) == (PILOT_REJECTED, ERROR_MAX_TOKENS)
+    assert (over_total_cap.status, over_total_cap.error_category) == (PILOT_REJECTED, ERROR_MAX_TOKENS)
     assert transport.calls == []
 
 
@@ -122,6 +126,8 @@ def test_fake_transport_pilot_records_usage_and_fast_routing_metadata():
     assert result.records[0].routing_reason == ROUTE_FAST_DEFAULT
     assert result.records[0].usage.input_tokens == 9
     assert result.records[0].usage.output_tokens == 3
+    assert result.records[0].max_output_tokens == 1024
+    assert result.estimated_max_tokens >= result.estimated_input_tokens
     assert result.records[0].review_outcome == "PENDING_TEACHER_REVIEW"
     assert len(transport.calls) == 5
 

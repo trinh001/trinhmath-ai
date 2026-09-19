@@ -89,9 +89,11 @@ class PilotPolicy:
     max_items_per_task: int = 5
     max_retries: int = 2
     timeout_seconds: int = 60
+    max_output_tokens: int = 1_024
     max_payload_bytes: int = 16_384
     max_estimated_input_tokens_per_task: int = 4_096
     max_estimated_input_tokens_total: int = 12_000
+    max_estimated_total_tokens: int = 16_000
 
 
 @dataclass(frozen=True)
@@ -106,6 +108,7 @@ class PilotRecord:
     max_items: int
     max_retries: int
     timeout_seconds: int
+    max_output_tokens: int
     dry_run: bool
     estimated_input_tokens: int
     usage: UsageMetadata
@@ -122,6 +125,7 @@ class PilotRunResult:
     error_category: str
     records: tuple[PilotRecord, ...] = ()
     estimated_input_tokens: int = 0
+    estimated_max_tokens: int = 0
 
 
 class DeepSeekPilotRunner:
@@ -139,13 +143,17 @@ class DeepSeekPilotRunner:
             return PilotRunResult(status=status, error_category=policy_error)
 
         prepared: list[tuple[PilotTask, Any, int]] = []
-        total_estimate = 0
+        total_input_estimate = 0
+        total_max_tokens = 0
         for task in task_list:
             error, route, estimate = self._prepare_task(task)
             if error:
                 return PilotRunResult(status=PILOT_REJECTED, error_category=error)
-            total_estimate += estimate
-            if total_estimate > self._policy.max_estimated_input_tokens_total:
+            total_input_estimate += estimate
+            if total_input_estimate > self._policy.max_estimated_input_tokens_total:
+                return PilotRunResult(status=PILOT_REJECTED, error_category=ERROR_MAX_TOKENS)
+            total_max_tokens += estimate + self._policy.max_output_tokens
+            if total_max_tokens > self._policy.max_estimated_total_tokens:
                 return PilotRunResult(status=PILOT_REJECTED, error_category=ERROR_MAX_TOKENS)
             prepared.append((task, route, estimate))
 
@@ -154,7 +162,8 @@ class DeepSeekPilotRunner:
             status=PILOT_COMPLETED,
             error_category="",
             records=records,
-            estimated_input_tokens=total_estimate,
+            estimated_input_tokens=total_input_estimate,
+            estimated_max_tokens=total_max_tokens,
         )
 
     def _policy_error(self, tasks: tuple[PilotTask, ...]) -> str:
@@ -166,6 +175,8 @@ class DeepSeekPilotRunner:
             return ERROR_KILL_SWITCH
         if not self._provider.config.enabled:
             return ERROR_PROVIDER_DISABLED
+        if not 1 <= self._policy.max_output_tokens <= self._provider.config.max_output_tokens:
+            return ERROR_MAX_TOKENS
         if len(tasks) < self._policy.min_tasks:
             return ERROR_MIN_TASKS
         if len(tasks) > self._policy.max_tasks:
@@ -206,6 +217,7 @@ class DeepSeekPilotRunner:
             timeout_seconds=self._policy.timeout_seconds,
             max_retries=self._policy.max_retries,
             max_items=task.item_count,
+            max_output_tokens=self._policy.max_output_tokens,
             dry_run=dry_run,
             task_id=task.task_id,
             request_metadata={
@@ -231,6 +243,7 @@ class DeepSeekPilotRunner:
             max_items=task.item_count,
             max_retries=self._policy.max_retries,
             timeout_seconds=self._policy.timeout_seconds,
+            max_output_tokens=self._policy.max_output_tokens,
             dry_run=dry_run,
             estimated_input_tokens=estimate,
             usage=result.usage,

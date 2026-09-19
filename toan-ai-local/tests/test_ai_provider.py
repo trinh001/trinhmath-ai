@@ -1,3 +1,5 @@
+import json
+
 from ai_provider import (
     DEEPSEEK_FAST_PROFILE,
     DEEPSEEK_PRO_PROFILE,
@@ -36,6 +38,7 @@ def request(*, dry_run=False, **overrides):
         "timeout_seconds": 30,
         "max_retries": 2,
         "max_items": 5,
+        "max_output_tokens": 256,
         "dry_run": dry_run,
         "task_id": "safe-test-1",
         "request_metadata": {"prompt_version": "v1", "api_key": "must-not-leak"},
@@ -149,6 +152,44 @@ def test_urllib_transport_is_injectable_and_tested_without_network():
     assert response.body == {"choices": [{"message": {"content": "{}"}}]}
     assert calls[0][1] == 7
     assert calls[0][0].full_url == "https://example.invalid/chat/completions"
+
+
+def test_urllib_transport_retries_http_429_then_200_with_injected_opener():
+    calls = []
+    responses = [
+        FakeHttpResponse(status_code=429, body=b'{"error": "rate limited"}'),
+        FakeHttpResponse(body=b'{"choices": [{"message": {"content": "{\\"accepted\\": true}"}}]}'),
+    ]
+
+    def opener(http_request, timeout):
+        calls.append((http_request, timeout))
+        return responses.pop(0)
+
+    result = DeepSeekProvider(
+        config=enabled_config(),
+        environment={"DEEPSEEK_API_KEY": "fixture-key"},
+        transport=UrllibDeepSeekTransport(opener=opener),
+    ).run(request(max_retries=1))
+    assert result.status == RESULT_SUCCESS
+    assert result.attempts == 2
+    assert len(calls) == 2
+    request_body = json.loads(calls[0][0].data.decode("utf-8"))
+    assert request_body["max_tokens"] == 256
+    assert request_body["response_format"] == {"type": "json_object"}
+
+
+def test_output_token_cap_and_truncated_json_fail_closed():
+    transport = FakeDeepSeekTransport([success_response('{"accepted":')])
+    provider = DeepSeekProvider(
+        config=enabled_config(max_output_tokens=100),
+        environment={"DEEPSEEK_API_KEY": "fixture-key"},
+        transport=transport,
+    )
+    over_cap = provider.run(request(max_output_tokens=101))
+    truncated = provider.run(request(max_output_tokens=100))
+    assert (over_cap.status, over_cap.error_category) == (RESULT_REJECTED, ERROR_REQUEST_NOT_ALLOWED)
+    assert (truncated.status, truncated.error_category) == (RESULT_REJECTED, ERROR_MALFORMED_RESPONSE)
+    assert len(transport.calls) == 1
 
 
 def test_unapproved_or_sensitive_requests_do_not_reach_transport():

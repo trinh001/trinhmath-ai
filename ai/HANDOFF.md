@@ -4,15 +4,15 @@
 
 ## LAST COMPLETED
 
-Đã dựng Phase 3 pilot prep: isolated runner, sanitized fixture, audit schema và budget/kill-switch/feature gates trên Phase 2 transport contract. Không có API call, key, C2C hay Qwen adapter.
+Phase 3 now caps `max_output_tokens`/request `max_tokens`, total pilot token budget, JSON-only response format, HTTP 429->200 retry and truncated JSON rejection. All tests remain injected/offline; no API call or key.
 
 ## CURRENT STATE
 
-Phase 3 local verification, final diff và secret gate đã PASS; implementation commit đã push trên branch mới từ `origin/main`. App vẫn không import hay gọi provider mới, feature/pilot flags mặc định OFF.
+Narrow guard update is locally verified (21 targeted, 74 full tests; diff/secret gate PASS) and ready to commit/push. App still does not import or call the provider; feature/pilot flags remain OFF.
 
 ## ACTIVE TASK
 
-Tạo PR Phase 3 sau xác nhận submission GitHub, rồi theo dõi CI. Không merge.
+Commit/push this narrow guard update, then stop. Do not merge or request a key.
 
 ## ACTIVE BRANCH
 
@@ -38,4 +38,4 @@ Không có blocker kỹ thuật cho verification local. API key/network/pilot th
 
 ## NEXT EXACT ACTION
 
-Sau xác nhận, tạo PR từ `codex/deepseek-pilot-prep-2026-09-20` vào `main`, rồi theo dõi CI; không yêu cầu key, không chạy pilot thật và không merge `main`.
+After push, wait for new user scope; do not request a key, run a real pilot or merge `main`.
