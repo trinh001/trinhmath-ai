@@ -2,7 +2,7 @@
 
 ## Goal
 
-Complete Phase 3 pilot preparation: an offline-only, bounded sanitized pilot runner with fixtures and audit schema; no API request, key or app/data integration.
+Submit completed Phase 3 pilot preparation for PR review: an offline-only, bounded sanitized pilot runner with fixtures and audit schema; no API request, key or app/data integration.
 
 ## Scope
 

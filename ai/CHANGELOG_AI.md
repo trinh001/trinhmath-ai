@@ -4,7 +4,7 @@
 
 - Added standalone `deepseek_pilot.py`: explicit pilot policy, kill switch, task/item/retry/timeout/payload/token guards, FAST/PRO routing audit, redacted metadata and review-only results.
 - Added two synthetic algebra/code fixtures and a pilot contract. No source/OCR/student/database record was copied; no app integration, key read or API request exists.
-- PASS local: 23 provider/router/transport/pilot tests; 72 full pytest; isolated self-check; converter suite; final diff/security gate. Commit/push and CI are pending.
+- PASS local: 23 provider/router/transport/pilot tests; 72 full pytest; isolated self-check; converter suite; final diff/security gate. Implementation branch đã push; PR/CI chờ submission GitHub được xác nhận.
 
 ## 2026-09-20 — Phase 2 injected transport guardrails
 

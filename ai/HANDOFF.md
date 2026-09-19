@@ -8,11 +8,11 @@
 
 ## CURRENT STATE
 
-Phase 3 local verification, final diff và secret gate đã PASS trên branch mới từ `origin/main`; commit/push còn chờ. App vẫn không import hay gọi provider mới, feature/pilot flags mặc định OFF.
+Phase 3 local verification, final diff và secret gate đã PASS; implementation commit đã push trên branch mới từ `origin/main`. App vẫn không import hay gọi provider mới, feature/pilot flags mặc định OFF.
 
 ## ACTIVE TASK
 
-Commit/push branch Phase 3, rồi tạo PR và theo dõi CI. Không merge.
+Tạo PR Phase 3 sau xác nhận submission GitHub, rồi theo dõi CI. Không merge.
 
 ## ACTIVE BRANCH
 
@@ -20,7 +20,7 @@ Commit/push branch Phase 3, rồi tạo PR và theo dõi CI. Không merge.
 
 ## LAST SAFE COMMIT
 
-`c09b2ee` — `origin/main` an toàn làm base Phase 3; lấy SHA hiện hành bằng `git log -1 --format=%H` trước khi tiếp tục.
+`da8de28` — implementation checkpoint Phase 3 đã qua full local verification; lấy SHA hiện hành bằng `git log -1 --format=%H` trước khi tiếp tục.
 
 ## TEST STATUS
 
@@ -38,4 +38,4 @@ Không có blocker kỹ thuật cho verification local. API key/network/pilot th
 
 ## NEXT EXACT ACTION
 
-Review staged diff, commit/push branch Phase 3 rồi tạo PR; không yêu cầu key, không chạy pilot thật và không merge `main`.
+Sau xác nhận, tạo PR từ `codex/deepseek-pilot-prep-2026-09-20` vào `main`, rồi theo dõi CI; không yêu cầu key, không chạy pilot thật và không merge `main`.
