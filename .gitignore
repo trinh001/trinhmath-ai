@@ -21,6 +21,7 @@ __pycache__/
 
 # Private teaching data and generated question-bank records
 toan-ai-local/question_candidates.json
+toan-ai-local/question_candidates_triaged.json
 toan-ai-local/question_bank.json
 toan-ai-local/question_drafts.json
 toan-ai-local/approved_questions.json
@@ -31,6 +32,7 @@ toan-ai-local/ai_scan_status.json
 toan-ai-local/draft_batch_status.json
 toan-ai-local/local_ocr_status.json
 toan-ai-local/TrinhMath_AI_source_for_GitHub_*.zip
+TrinhMath_AI_*.zip
 
 # Credentials and machine-specific state
 *.key
@@ -45,3 +47,8 @@ toan-ai-local/.remembered_user.json
 Thumbs.db
 .vscode/
 .idea/
+
+# Checked-out third-party source is local research material, not product code.
+# Keep its provenance in external/README.md and docs/open-source/ instead.
+external/*
+!external/README.md

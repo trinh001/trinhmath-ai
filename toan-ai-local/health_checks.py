@@ -8,6 +8,9 @@ import json
 import re
 from pathlib import Path
 
+from math_verifier import math_verification_release_issue
+from variant_validation import validate_quiz_variant_for_student
+
 
 CURRICULUM_EXPECTATIONS = {
     "Lớp 10": (9, 27),
@@ -46,13 +49,11 @@ def audit_data_links(sources, candidates, variants, sources_dir):
             continue
         try:
             question = json.loads(record.get("variant", ""))
-            valid = bool(question.get("usable")) and not question.get("requires_teacher_review")
-            if question.get("type") == "multiple_choice":
-                valid = valid and len(question.get("options") or []) == 4
-            elif question.get("type") == "short_answer":
-                valid = valid and bool(str(question.get("correct_answer", "")).strip())
-            else:
-                valid = False
+            errors = validate_quiz_variant_for_student(question)
+            verification_issue = math_verification_release_issue(question)
+            if verification_issue:
+                errors.append(verification_issue)
+            valid = not errors
         except (TypeError, json.JSONDecodeError):
             valid = False
         if not valid:

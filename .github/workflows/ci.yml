@@ -1,0 +1,44 @@
+name: Private-code checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  trinhmath-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test dependencies
+        run: python -m pip install -r toan-ai-local/requirements-dev.txt
+      - name: Compile TrinhMath modules
+        run: python -m py_compile toan-ai-local/app.py toan-ai-local/source_analyzer.py toan-ai-local/self_check.py toan-ai-local/source_quality.py toan-ai-local/source_review.py toan-ai-local/local_review_workflow.py toan-ai-local/candidate_triage.py toan-ai-local/curriculum_coverage.py toan-ai-local/variant_validation.py toan-ai-local/adaptive_learning.py toan-ai-local/grading.py toan-ai-local/math_verifier.py toan-ai-local/variant_review_service.py
+      - name: Run isolated TrinhMath tests
+        working-directory: toan-ai-local
+        run: python -m pytest -q tests
+
+  converter-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install converter dependencies
+        run: python -m pip install -r math-document-converter/requirements.txt
+      - name: Compile Converter modules
+        run: python -m py_compile math-document-converter/app.py math-document-converter/converter/storage.py math-document-converter/converter/matching.py math-document-converter/converter/matching_service.py
+      - name: Run Converter tests
+        working-directory: math-document-converter
+        run: |
+          python test_core.py
+          python test_question_parser.py
+          python test_matching.py
+          python test_review_storage.py

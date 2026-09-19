@@ -51,7 +51,7 @@ Sau đó mở app, vào **Góc cùng suy nghĩ AI** → **Quét OCR cục bộ b
 ## Các giới hạn an toàn hiện tại
 
 - Lời giải do Gemini hỗ trợ chưa phải là bằng chứng toán học tuyệt đối. Với hình học, bài thiếu hình/dữ kiện hoặc câu có kết quả bất thường, app luôn nhắc người học đối chiếu với giáo viên/lời giải chuẩn.
-- Bộ kiểm chứng đại số bằng SymPy và nhiều cách giải sẽ là giai đoạn tiếp theo; app hiện không giả vờ đã kiểm chứng những nội dung chưa thể kiểm chứng.
+- Math Verifier V1 dùng SymPy khi giáo viên/service cung cấp biểu thức có cấu trúc rõ để kiểm tra nghiệm, đạo hàm, nguyên hàm, tích phân hoặc đồng nhất thức. Nó không tự đọc LaTeX/OCR hay khẳng định đúng với hình học, chứng minh và dữ kiện mơ hồ.
 
 ## Khi cần cài lại môi trường
 
