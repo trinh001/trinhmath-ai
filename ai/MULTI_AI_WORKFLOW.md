@@ -1,108 +1,49 @@
 # TrinhMath AI — Multi-AI workflow
 
-## Mục tiêu
+## Vai trò active
 
-Tối ưu ba thứ cùng lúc: **chất lượng, chi phí và khả năng kiểm soát**. Không dùng một model cho mọi việc.
-
-## Vai trò mặc định
-
-| Thành phần | Vai trò chính | Không được làm |
+| Thành phần | Vai trò | Không được làm |
 | --- | --- | --- |
-| GPT | Lập kế hoạch, kiến trúc, review thay đổi quan trọng | Không tự phát hành câu hỏi hoặc coi suy luận là bằng chứng |
-| Codex | Coder chính: đọc repo, sửa code, test, tạo branch/PR | Không gọi API trả phí hoặc đẩy thẳng thay đổi rủi ro vào main |
-| DeepSeek | Coder phụ / reviewer / batch task giá rẻ khi đã bật provider | Không tự merge main, không tự duyệt nội dung Toán |
-| Qwen | Batch text/vision/Toán sau benchmark, dùng cho khối lượng lớn | Không thay thế OCR evidence, verifier hoặc giáo viên |
-| OCR local | Trích xuất khối lượng lớn trước tiên | Không tự suy đoán công thức mơ hồ |
-| Math Verifier | Kiểm tra cấu trúc/toán trong phạm vi hỗ trợ | INCONCLUSIVE/UNSUPPORTED không phải PASS |
-| Giáo viên | Quyết định cuối với nguồn, công thức, lời giải, đáp án và phát hành | Không bị thay thế bởi model |
+| GPT | Lập kế hoạch, kiến trúc, review quan trọng | Tự phát hành nội dung hoặc coi suy luận là bằng chứng |
+| Codex | Coder chính: inspect, sửa tối thiểu, test, branch/PR | Gọi API tính phí, commit secret, ghi đè data, push thẳng main |
+| DeepSeek FAST | Coder dự phòng/batch/vision khi provider được bật và scope cho phép | Merge main, quyết định teacher approval/release |
+| DeepSeek PRO | Escalation cho architecture, debug khó, review rủi ro | Vision hoặc escalation không có reason code |
+| OCR local / Math Verifier | Pipeline deterministic trước external AI | Suy đoán công thức mơ hồ hoặc coi INCONCLUSIVE là PASS |
+| Giáo viên | Quyết định nguồn, công thức, đáp án và phát hành | Bị thay thế bởi model |
 
 ## Luồng code
 
 ```text
-GPT plan
-  -> ai/TASK_QUEUE.md / handoff
-  -> Codex làm branch riêng
-  -> test local
-  -> DeepSeek review/fallback (chỉ khi provider đã bật)
-  -> GitHub PR + CI
-  -> review
-  -> main
+GPT handoff -> Codex branch -> local tests
+  -> DeepSeek FAST (chỉ khi enabled và task phù hợp)
+  -> DeepSeek PRO (chỉ escalation rõ ràng)
+  -> PR + CI -> human review -> main
 ```
 
-DeepSeek không cần chạy thường trực. Khi Codex hết lượt hoặc có task review/batch phù hợp, một handoff nhỏ được tạo từ repo hiện tại và model chỉ làm trên branch/task đã giới hạn.
+Mọi phiên bắt đầu bằng `AGENTS.md`, `ai/PROJECT_STATE.md`, `ai/CURRENT_TASK.md`, `ai/TASK_QUEUE.md`, `ai/DECISIONS.md`, `ai/TEST_STATUS.md`, `ai/HANDOFF.md` và Git state. Handoff chỉ chứa scope, acceptance criteria, test, risk; không chứa credential hoặc dữ liệu riêng.
+
+## Router bắt buộc
+
+| Điều kiện | Model | Reason code |
+| --- | --- | --- |
+| Routine/default | FAST HIGH | `ROUTE_FAST_DEFAULT` |
+| Image/vision | FAST HIGH | `ROUTE_VISION_FAST` |
+| Architecture/refactor/debug/invariant/security/data integrity khó | PRO HIGH | `ROUTE_COMPLEX_PRO` |
+| FAST thất bại ít nhất hai lượt hợp lý | PRO MAX | `ROUTE_FAST_FAILED_TWICE` |
+| Final review rủi ro | PRO MAX | `ROUTE_CRITICAL_REVIEW_PRO` |
+
+Không escalation theo cảm giác. PRO hiện không được route cho vision.
 
 ## Luồng nội dung Toán
 
 ```text
-Nguồn
- -> OCR/local parser
- -> candidate
- -> AI batch hỗ trợ (Qwen/DeepSeek nếu được bật)
- -> structural validation
- -> Math Verifier
- -> teacher review
- -> approved
- -> student variant
- -> release validation
+Nguồn -> OCR/local parser -> candidate -> optional DeepSeek assistance
+-> structural validation -> Math Verifier -> teacher review -> approved
+-> student variant -> release validation
 ```
 
-AI chỉ được tạo **candidate/draft/review suggestion**. Không model nào được tự tạo trạng thái approved/released.
+External AI chỉ có thể tạo candidate/draft/review suggestion. Không model nào tạo transition `approved`/`released`. Cả kho tài liệu, raw OCR, student database, backup và secret không được gửi mặc định.
 
-## Chính sách chi phí
+## Qwen
 
-1. **Local-first** cho OCR, parsing, matching và các bước có thể làm deterministically.
-2. **Model rẻ/batch** cho phân loại, chuẩn hóa, review số lượng lớn.
-3. **Model mạnh** chỉ dùng cho kiến trúc, lỗi khó, review quan trọng hoặc mẫu benchmark.
-4. Cache mọi output hợp lệ theo hash của input + provider + model + prompt version để tránh trả tiền lại.
-5. Không gửi toàn bộ 11k trang lên API chỉ vì tiện. Chỉ gửi phần local không giải quyết đủ tốt.
-6. Mọi batch phải có giới hạn số item/token/chi phí trước khi chạy.
-
-## Fallback Codex -> DeepSeek
-
-DeepSeek chỉ nhận task khi:
-- task được mô tả rõ trong handoff;
-- branch/worktree tách biệt;
-- không có secret/dữ liệu riêng trong input;
-- có test hoặc acceptance criteria;
-- output cuối vẫn qua Git diff + test + PR.
-
-Nếu DeepSeek sửa code, commit phải ghi rõ provider/task id trong changelog hoặc PR description.
-
-## Qwen cho tài liệu/Toán
-
-Qwen chỉ được đưa vào production sau khi benchmark trên golden set do giáo viên cho phép. So sánh ít nhất:
-- tỷ lệ giữ đúng công thức;
-- tỷ lệ bỏ sót hình/dữ kiện;
-- JSON/schema compliance;
-- hallucination/block rate;
-- thời gian;
-- chi phí trên 100 trang/câu.
-
-Nếu không thắng pipeline local hiện có ở một use case cụ thể thì không đưa vào use case đó.
-
-## Log tối thiểu
-
-Mỗi lần dùng model ngoài cần lưu metadata, không lưu secret:
-
-```text
-provider
-model
-task_class
-prompt_version
-input_artifact_refs
-timestamp
-result_status
-estimated_usage/cost nếu có
-review_state
-human_decision nếu có
-```
-
-## Nguyên tắc rollout
-
-- Bước 1: workflow/docs + test gate.
-- Bước 2: benchmark provider bằng dữ liệu an toàn.
-- Bước 3: provider adapter có feature flag, mặc định OFF.
-- Bước 4: batch nhỏ, kiểm tra chi phí/chất lượng.
-- Bước 5: mới tăng quy mô.
-
-Không nhảy thẳng từ “có API key” sang “cho chạy toàn kho”.
+Qwen không nằm trong active architecture, roadmap hay provider code. Nếu sau này nghiên cứu lại, cần một quyết định mới và benchmark độc lập trên golden set được phép trước mọi implementation.

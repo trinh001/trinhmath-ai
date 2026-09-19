@@ -10,6 +10,8 @@
 | 2026-09-19 | docx is a later isolated export candidate. | It does not belong in the current Python app without a scoped Word-export architecture. |
 | 2026-09-19 | Keep SymPy, MathLive and pgvector unvendored. | SymPy is already constrained in the current verifier; MathLive and pgvector solve later, unapproved scopes. |
 | 2026-09-19 | Model roles: GPT planner/reviewer; Codex primary coder; DeepSeek batch reviewer/backup; Qwen optional vision/backup. | These are workflow roles, not an authorization to call paid APIs or auto-approve content. |
+| 2026-09-20 | Supersede the active Qwen role: active architecture is GPT -> Codex -> DeepSeek FAST/PRO. | Qwen has no active adapter/task/roadmap. It can only be reconsidered through a new decision and benchmark. |
+| 2026-09-20 | Implement provider abstraction as offline-only contract before any transport. | DeepSeek starts OFF, has no HTTP client, reads no key unless explicitly enabled, and all failure states fail closed. |
 
 All source/license decisions require a fresh check at the exact version used in
 a release. This log is technical preparation, not legal advice.

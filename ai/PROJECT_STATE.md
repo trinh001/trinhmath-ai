@@ -26,4 +26,10 @@ _Cập nhật: 19/09/2026. Đây là ảnh chụp từ mã nguồn, `PROJECT_REP
 - 19/09/2026: `toan-ai-local` pytest, PASS: 49 tests.
 - 19/09/2026: bốn test script của `math-document-converter`, PASS; Python compile/import cũng PASS.
 
+## Checkpoint kỹ thuật 20/09/2026
+
+- Thêm provider abstraction offline và router FAST/PRO độc lập; `app.py` chưa gọi hoặc import provider, DeepSeek mặc định OFF và không có HTTP client/API key trong repository.
+- Workflow active là GPT -> Codex -> DeepSeek FAST/PRO; Qwen không thuộc roadmap/provider active.
+- 59 pytest của `toan-ai-local` (gồm 10 test provider/router offline), self-check cô lập và bốn converter checks đều PASS. Xem `ai/TEST_STATUS.md` để biết lệnh và giới hạn của lần chạy.
+
 Các lần chạy này không dùng API trả phí và không sửa database, raw OCR hay nguồn thật: self-check dùng junction chỉ-đọc tới nguồn và database riêng trong thư mục tạm.

@@ -2,28 +2,17 @@
 
 ## Goal
 
-Prepare a source-review and project-memory package so later Codex work can
-continue safely without rediscovering project context.
+Keep PR #3 ready for human review after completing the reversible Phase 1 checkpoint: optional DeepSeek provider contract and FAST/PRO router, with no external network/API usage and no app/data integration.
 
-## Completed preparation scope (historical)
+## Scope
 
-- Used a separate working branch for the preparation work; consult Git rather than this historical note for the active branch.
-- Prepared ignored shallow clones in `external/`: Pix2Text, PaddleOCR, MinerU,
-  docx.
-- Added one factual review per source and an adoption/risk overview.
-- Added the `ai/` memory pack, including roles and safety rules.
-- Did not modify application architecture/code, dependencies, data, release
-  state or secrets.
+- Standalone Python modules and offline tests only; do not modify `app.py`, database, source/OCR, question bank, approvals or release flow.
+- Align active documentation with GPT -> Codex -> DeepSeek FAST/PRO. Qwen is not active.
+- Commit/push only after regression checks and diff review; update existing PR #3, never merge it.
 
-## Validation for handoff
+## Completion criteria
 
-- Run `git diff --check` and review tracked/untracked status after staging only
-  these preparation files.
-- Do not run application or OCR tests merely for documentation; source clones
-  and current user changes make no claim about runtime verification.
-
-## Next implementation task (not authorized by this task)
-
-Design a small golden-set benchmark and a provider-neutral local OCR contract.
-It must be approved before installing Pix2Text/PaddleOCR or changing Converter
-code.
+- Provider is OFF by default; dry-run/missing key/malformed output fail closed.
+- Router emits named deterministic reason codes for FAST/PRO policy.
+- Existing tests and new offline tests pass; CI has no API/key dependency.
+- `TASK_QUEUE`, `TEST_STATUS`, `HANDOFF` and changelog identify the next safe action.
