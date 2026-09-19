@@ -32,4 +32,10 @@ _Cập nhật: 19/09/2026. Đây là ảnh chụp từ mã nguồn, `PROJECT_REP
 - Workflow active là GPT -> Codex -> DeepSeek FAST/PRO; Qwen không thuộc roadmap/provider active.
 - 59 pytest của `toan-ai-local` (gồm 10 test provider/router offline), self-check cô lập và bốn converter checks đều PASS. Xem `ai/TEST_STATUS.md` để biết lệnh và giới hạn của lần chạy.
 
+## Phase 2 transport guardrails 20/09/2026
+
+- DeepSeek transport là interface injected với Fake và `UrllibDeepSeekTransport` explicit; không có default HTTP client, nên không thể phát sinh external request chỉ vì môi trường có key/flag.
+- Allow-list, bounds, payload secret rejection, retry bounded và JSON response validation đều fail closed; `app.py` vẫn không gọi provider.
+- 64 pytest (15 provider/router/transport tests), isolated self-check và converter checks PASS. Xem `ai/TEST_STATUS.md` để biết trạng thái commit/CI hiện thời.
+
 Các lần chạy này không dùng API trả phí và không sửa database, raw OCR hay nguồn thật: self-check dùng junction chỉ-đọc tới nguồn và database riêng trong thư mục tạm.
