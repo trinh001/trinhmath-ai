@@ -145,3 +145,10 @@ Kết quả self-check gần nhất: `OK: candidates=4843, ready_multiple_choice
 - Request tương lai phải qua feature flag, dry-run, key presence, task allow-list, model mapping, timeout/retry/item/payload bounds và secret rejection. Response sai schema/JSON hay transport failure fail closed.
 - Không đổi `app.py`, database, raw OCR, nguồn, dữ liệu học sinh, approval/release flow hoặc dependency. Full pytest đạt **64**, self-check staging và converter checks PASS.
 - Key, HTTP implementation, external data transfer, budget và pilot chưa được ủy quyền; đây là các stop condition riêng.
+
+## 12. Checkpoint pilot preparation — 20/09/2026
+
+- Bổ sung `deepseek_pilot.py` tách khỏi app và fixture synthetic công khai. Runner audit task/model/route/limits/dry-run/usage/status/latency/review outcome, nhưng không giữ raw source input hoặc credential.
+- Pilot policy mặc định OFF với kill switch ON. Thiếu config, feature/provider OFF, task/item/payload/token budget vượt giới hạn, secret-like content, route sai hoặc response hỏng đều fail closed trước/sau transport theo đúng scope.
+- Không gọi API, không đọc key thật, không dùng data riêng, không sửa pipeline content hay database. Full pytest đạt **72**, self-check staging và converter checks PASS.
+- Sau PR/CI xanh và branch sạch, bước tiếp theo cần explicit data scope/budget rồi mới xin `DEEPSEEK_API_KEY` cho request thật đầu tiên.

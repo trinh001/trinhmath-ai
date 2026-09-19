@@ -1,0 +1,42 @@
+[
+  {
+    "task_id": "golden-algebra-001",
+    "task_class": "structured_text_review",
+    "prompt_version": "pilot-v1",
+    "sanitized_text": "Return JSON that classifies the expression 2x + 1 = 5 as an algebra exercise.",
+    "item_count": 1,
+    "sanitized": true
+  },
+  {
+    "task_id": "golden-code-001",
+    "task_class": "code_review",
+    "prompt_version": "pilot-v1",
+    "sanitized_text": "Return JSON with one review note for a bounded pure function.",
+    "item_count": 1,
+    "sanitized": true
+  },
+  {
+    "task_id": "golden-geometry-001",
+    "task_class": "structured_text_review",
+    "prompt_version": "pilot-v1",
+    "sanitized_text": "Return JSON that labels a triangle perimeter exercise as geometry.",
+    "item_count": 1,
+    "sanitized": true
+  },
+  {
+    "task_id": "golden-format-001",
+    "task_class": "code_review",
+    "prompt_version": "pilot-v1",
+    "sanitized_text": "Return JSON with a formatting suggestion for a short pure function.",
+    "item_count": 1,
+    "sanitized": true
+  },
+  {
+    "task_id": "golden-analysis-001",
+    "task_class": "structured_text_review",
+    "prompt_version": "pilot-v1",
+    "sanitized_text": "Return JSON that identifies a derivative prompt as calculus.",
+    "item_count": 1,
+    "sanitized": true
+  }
+]

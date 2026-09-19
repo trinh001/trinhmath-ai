@@ -51,6 +51,7 @@ Qwen không thuộc active architecture và không có adapter hay task phụ th
 - Chỉ 5–20 task sanitized/golden-set đã được phép, không student DB, whole source bank, raw OCR hàng loạt, backup ZIP hay login state.
 - Đo schema pass rate, correctness/review usefulness, failure/retry, latency, token usage và estimated/actual cost.
 - Chỉ mở từng task class nếu kết quả đạt tiêu chí được phê duyệt; nếu không giữ OFF.
+- Checkpoint prep: `deepseek_pilot.py` tạo audit record, dry-run, feature/kill switch, token/payload/item/retry/task guards và fixture test công khai. Nó không chạy API; key chỉ là stop condition sau PR/CI xanh.
 
 ## Phase 4 — Content integration sau pilot
 

@@ -1,5 +1,11 @@
 # Nhật ký thay đổi bộ nhớ AI
 
+## 2026-09-20 — Phase 3 DeepSeek pilot preparation
+
+- Added standalone `deepseek_pilot.py`: explicit pilot policy, kill switch, task/item/retry/timeout/payload/token guards, FAST/PRO routing audit, redacted metadata and review-only results.
+- Added two synthetic algebra/code fixtures and a pilot contract. No source/OCR/student/database record was copied; no app integration, key read or API request exists.
+- PASS local: 23 provider/router/transport/pilot tests; 72 full pytest; isolated self-check; converter suite; final diff/security gate. Implementation branch đã push; PR/CI chờ submission GitHub được xác nhận.
+
 ## 2026-09-20 — Phase 2 injected transport guardrails
 
 - `DeepSeekProvider` nay có injected transport contract, `FakeDeepSeekTransport` và `UrllibDeepSeekTransport` explicit. HTTP transport không được tạo mặc định; test dùng fake opener, nên repository/CI không có API call.

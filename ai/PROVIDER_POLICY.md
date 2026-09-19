@@ -32,3 +32,7 @@ Missing key, disabled flag, malformed result, timeout/rate limit hoặc provider
 ## Cost guard
 
 Không gửi mặc định 11k trang. Luồng luôn là local deterministic -> local OCR/parser -> FAST khi thật sự cần -> PRO chỉ theo router. Pilot sau này chỉ 5–20 task sanitized và phải đo quality, failure, retries, latency, usage/cost trước khi mở rộng.
+
+## Pilot pre-flight
+
+`deepseek_pilot.py` chỉ nhận `PilotTask` được đánh dấu sanitized và không giữ raw input trong audit record. Policy phải được truyền rõ ràng: feature ON, kill switch OFF, task/item/retry/timeout/payload/token limits hợp lệ và provider ON. Thiếu bất kỳ gate nào đều fail closed trước transport. FAST là default; PRO chỉ do router trả reason code hợp lệ. Fixture test nằm trong `toan-ai-local/tests/fixtures/` và không được dùng làm dữ liệu gọi API mặc định.

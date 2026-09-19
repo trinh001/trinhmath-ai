@@ -38,4 +38,9 @@ _Cập nhật: 19/09/2026. Đây là ảnh chụp từ mã nguồn, `PROJECT_REP
 - Allow-list, bounds, payload secret rejection, retry bounded và JSON response validation đều fail closed; `app.py` vẫn không gọi provider.
 - 64 pytest (15 provider/router/transport tests), isolated self-check và converter checks PASS. Xem `ai/TEST_STATUS.md` để biết trạng thái commit/CI hiện thời.
 
+## Phase 3 pilot preparation 20/09/2026
+
+- Runner pilot tách biệt khỏi app nhận tối đa 5–20 task sanitized, có fixture synthetic và audit metadata thay vì raw input. Policy mặc định OFF + kill switch ON; pre-flight chặn config thiếu, vượt budget, secret-like payload hoặc route không hợp lệ trước transport.
+- Không có API call/key/data thật. Sau PR/CI xanh và branch sạch mới là blocker hợp lệ để xin `DEEPSEEK_API_KEY` cùng data scope/budget cho request đầu tiên.
+
 Các lần chạy này không dùng API trả phí và không sửa database, raw OCR hay nguồn thật: self-check dùng junction chỉ-đọc tới nguồn và database riêng trong thư mục tạm.

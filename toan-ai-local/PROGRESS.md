@@ -112,3 +112,10 @@ _Cập nhật: 13/09/2026_
 - Mở rộng `ai_provider.py` bằng injected transport contract, Fake transport thuần in-memory và `UrllibDeepSeekTransport` explicit. Không có default transport/dependency mới, không gọi mạng, không dùng key thật và không nối vào `app.py`.
 - Mọi request chạy ngoài trong tương lai phải qua allow-list task class, mapping FAST/PRO, max timeout/retry/item/payload, redaction metadata và chặn payload có khóa nhạy cảm. HTTP/response lỗi hoặc JSON hỏng đều fail closed; retry bị giới hạn.
 - Bổ sung regression tests; tổng **64 pytest** PASS (15 test provider/router/transport). Self-check staging cô lập và bốn converter checks cũng PASS; không sửa database, OCR, nguồn hay trạng thái duyệt/phát hành.
+
+## Nhật ký pilot preparation — 20/09/2026
+
+- Thêm `deepseek_pilot.py` riêng khỏi `app.py`: policy OFF/kill switch ON, max task/item/retry/timeout/payload/token budget, router FAST/PRO reason code và audit record không dump input nguồn.
+- Fixture test chỉ gồm hai prompt synthetic vô danh. Runner không đọc source/OCR/database/question bank, không đọc key thật và không mở network trong CI.
+- Thêm test cho pilot OFF/dry-run/config thiếu/budget/item/payload/token/secret/malformed response/usage/routing/fake transport. Tổng **72 pytest** PASS (23 test provider/router/transport/pilot); self-check staging và converter suite PASS.
+- Chỉ sau PR/CI xanh và branch sạch mới dừng xin key/data scope/budget cho request thật đầu tiên.

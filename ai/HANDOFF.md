@@ -4,38 +4,38 @@
 
 ## LAST COMPLETED
 
-Đã dựng Phase 2 injected DeepSeek transport contract cùng allow-list, limit, redaction, retry, response validation và Fake transport. Không có HTTP client thật, API call, key, C2C hay Qwen adapter.
+Phase 3 now caps `max_output_tokens`/request `max_tokens`, total pilot token budget, JSON-only response format, HTTP 429->200 retry and truncated JSON rejection. All tests remain injected/offline; no API call or key.
 
 ## CURRENT STATE
 
-Phase 2 local verification, diff và secret gate đã PASS; implementation commit đã push trên branch mới từ `origin/main`. App vẫn không import hay gọi provider mới, feature flag DeepSeek mặc định OFF.
+Narrow guard update is locally verified (21 targeted, 74 full tests; diff/secret gate PASS) and ready to commit/push. App still does not import or call the provider; feature/pilot flags remain OFF.
 
 ## ACTIVE TASK
 
-Tạo PR Phase 2 sau xác nhận submission GitHub, rồi theo dõi CI. Không merge.
+Commit/push this narrow guard update, then stop. Do not merge or request a key.
 
 ## ACTIVE BRANCH
 
-`codex/deepseek-transport-2026-09-20` tại thời điểm checkpoint này. Luôn kiểm tra bằng `git branch --show-current` trước khi tiếp tục.
+`codex/deepseek-pilot-prep-2026-09-20` tại thời điểm checkpoint này. Luôn kiểm tra bằng `git branch --show-current` trước khi tiếp tục.
 
 ## LAST SAFE COMMIT
 
-`d47b248` — `origin/main` an toàn làm base Phase 2; lấy SHA hiện hành bằng `git log -1 --format=%H` trước khi tiếp tục.
+`da8de28` — implementation checkpoint Phase 3 đã qua full local verification; lấy SHA hiện hành bằng `git log -1 --format=%H` trước khi tiếp tục.
 
 ## TEST STATUS
 
-Provider/router/transport: PASS (14); full `toan-ai-local`: PASS (63); isolated self-check và converter checks: PASS. Xem `ai/TEST_STATUS.md`.
+Provider/router/transport/pilot: PASS (23); full `toan-ai-local`: PASS (72); isolated self-check và converter checks: PASS. Xem `ai/TEST_STATUS.md`.
 
 ## KNOWN RISKS
 
-- Không có HTTP transport có chủ ý; run thật cần implementation review riêng, key, data/budget approval và separate review.
+- First real run cần API key, data/budget approval, user-selected 5–20 sanitized tasks và separate review.
 - Current content counts và historical self-check không phải truy vấn live.
 - Math/image ambiguity vẫn bắt buộc teacher review.
 
 ## BLOCKERS
 
-Không có blocker kỹ thuật cho verification local. HTTP implementation/API key/network/pilot là stop condition và chưa được ủy quyền.
+Không có blocker kỹ thuật cho verification local. API key/network/pilot thật là stop condition và chưa được ủy quyền.
 
 ## NEXT EXACT ACTION
 
-Sau xác nhận, tạo PR từ `codex/deepseek-transport-2026-09-20` vào `main`, rồi theo dõi CI; không bật transport HTTP, không yêu cầu key, không chạy pilot và không merge `main`.
+After push, wait for new user scope; do not request a key, run a real pilot or merge `main`.
