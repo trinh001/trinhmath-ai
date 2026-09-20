@@ -1,8 +1,7 @@
-"""Pure review-queue model for M2 candidate classifications.
+"""Read-only M2 review queue built from classifier and source-review evidence.
 
-This module is deliberately read-only. It combines classifier output with
-candidate metadata and existing teacher-review state, but never writes approval
-or release state.
+The queue is a derived teacher-workflow view. It never changes candidate,
+approval, release, OCR, or source state.
 """
 
 from __future__ import annotations
@@ -11,7 +10,9 @@ from collections import Counter
 from collections.abc import Mapping
 from typing import Any
 
-from candidate_classification import INVALID, MATCHED, REVIEW_REQUIRED
+from candidate_classification import INVALID, MATCHED, REVIEW_REQUIRED, normalize_text
+from local_review_workflow import LOCAL_DRAFT_PROVENANCE, review_decision_text
+from source_review import build_source_review_snapshot
 
 
 OUTCOME_PRIORITY = {
@@ -35,12 +36,12 @@ REASON_PRIORITY = {
 }
 
 
-def _mapping(value: object) -> Mapping[str, Any]:
-    return value if isinstance(value, Mapping) else {}
-
-
 def _text(value: object) -> str:
     return str(value or "").strip()
+
+
+def _mapping(value: object) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
 
 
 def _reason_rank(reasons: object) -> int:
@@ -58,15 +59,9 @@ def _candidate_map(candidates: object) -> dict[str, Mapping[str, Any]]:
     }
 
 
-def _draft_map(drafts: object) -> Mapping[str, Any]:
-    return drafts if isinstance(drafts, Mapping) else {}
-
-
 def _local_review_map(local_review_queue: object) -> dict[str, Mapping[str, Any]]:
     queue = _mapping(local_review_queue)
-    rows = queue.get("rows")
-    if not isinstance(rows, list):
-        return {}
+    rows = queue.get("rows") if isinstance(queue.get("rows"), list) else []
     return {
         _text(row.get("candidate_id")): row
         for row in rows
@@ -74,44 +69,62 @@ def _local_review_map(local_review_queue: object) -> dict[str, Mapping[str, Any]
     }
 
 
+def _review_state(draft: Mapping[str, Any], decision_text: str, status: str) -> str:
+    if decision_text:
+        return "TEACHER_FLAGGED"
+    if status == "Đã duyệt và đưa vào ngân hàng":
+        return "ALREADY_APPROVED"
+    if status == "Đã xác nhận nguồn — chờ duyệt vào ngân hàng":
+        return "SOURCE_REVIEW_CONFIRMED"
+    if draft.get("provenance") in LOCAL_DRAFT_PROVENANCE:
+        return "AWAITING_TEACHER_REVIEW"
+    return "NO_LOCAL_DRAFT"
+
+
 def build_candidate_review_queue(
     classification_report: object,
     candidates: object,
-    *,
+    image_analyses: object = None,
     drafts: object = None,
+    manual_formula_overrides: object = None,
+    *,
     local_review_queue: object = None,
 ) -> dict[str, Any]:
-    """Build a deterministic teacher queue from read-only classifier evidence."""
+    """Build a deterministic queue without mutating any supplied data."""
     report = _mapping(classification_report)
     classifications = report.get("classifications")
     classification_rows = classifications if isinstance(classifications, list) else []
     candidate_by_id = _candidate_map(candidates)
-    draft_by_id = _draft_map(drafts)
+    draft_by_id = _mapping(drafts)
+    override_by_id = _mapping(manual_formula_overrides)
     local_by_id = _local_review_map(local_review_queue)
 
     rows: list[dict[str, Any]] = []
     for classification in classification_rows:
         if not isinstance(classification, Mapping):
             continue
+
         candidate_id = _text(classification.get("candidate_id"))
         candidate = candidate_by_id.get(candidate_id, {})
+        draft = _mapping(draft_by_id.get(candidate_id))
         evidence = _mapping(classification.get("evidence"))
-        source_match = _mapping(evidence.get("source_match"))
         structural = _mapping(evidence.get("structural"))
+        source_match = _mapping(evidence.get("source_match"))
         duplicate = _mapping(evidence.get("duplicate"))
         confidence = _mapping(evidence.get("confidence"))
-        draft = _mapping(draft_by_id.get(candidate_id))
-        local = local_by_id.get(candidate_id, {})
-
-        outcome = _text(classification.get("outcome"))
-        reasons = [str(value) for value in classification.get("reason_codes", []) if str(value)]
-        review_decision = _text(draft.get("review_decision"))
-        status = _text(draft.get("status"))
-        resolved = bool(
-            review_decision
-            or status in {"Đã duyệt và đưa vào ngân hàng", "Đã xác nhận nguồn — chờ duyệt vào ngân hàng"}
+        source_snapshot = build_source_review_snapshot(
+            candidate,
+            image_analyses,
+            override_by_id.get(candidate_id),
         )
-        priority = (
+
+        decision_text = review_decision_text(draft.get("review_decision"))
+        status = _text(draft.get("status"))
+        state = _review_state(draft, decision_text, status)
+        resolved = state in {"TEACHER_FLAGGED", "ALREADY_APPROVED", "SOURCE_REVIEW_CONFIRMED"}
+        reasons = [str(value) for value in classification.get("reason_codes", []) if str(value)]
+        outcome = _text(classification.get("outcome"))
+        priority_key = (
             1 if resolved else 0,
             OUTCOME_PRIORITY.get(outcome, 9),
             _reason_rank(reasons),
@@ -121,15 +134,18 @@ def build_candidate_review_queue(
             candidate_id,
         )
 
+        is_local_draft = bool(draft) and draft.get("provenance") in LOCAL_DRAFT_PROVENANCE
         rows.append({
             "candidate_id": candidate_id,
             "outcome": outcome,
             "reason_codes": reasons,
-            "priority_key": priority,
+            "priority_key": priority_key,
             "resolved": resolved,
-            "teacher_review_decision": review_decision,
+            "teacher_review_decision": decision_text,
+            "review_state": state,
+            "review_state_note": decision_text,
             "draft_status": status,
-            "local_review_bucket": _text(local.get("bucket")),
+            "local_review_bucket": _text(_mapping(local_by_id.get(candidate_id)).get("bucket")),
             "source_file": _text(candidate.get("source_file")),
             "source_name": _text(candidate.get("source_name") or candidate.get("source_file")),
             "question_number": _text(candidate.get("question_number")),
@@ -145,6 +161,10 @@ def build_candidate_review_queue(
             "requires_visual_review": bool(structural.get("requires_visual_review")),
             "math_status": _text(structural.get("math_status")),
             "classification_scope": _text(classification.get("classification_scope")),
+            "source_review": source_snapshot,
+            "evidence": dict(evidence),
+            "can_flag_local_draft": is_local_draft and not resolved,
+            "can_restore_local_draft": is_local_draft and state == "TEACHER_FLAGGED",
         })
 
     rows.sort(key=lambda row: row["priority_key"])
@@ -152,12 +172,10 @@ def build_candidate_review_queue(
         row["priority"] = index
         row.pop("priority_key", None)
 
-    outcome_counts = Counter(row["outcome"] for row in rows)
-    reason_counts = Counter(reason for row in rows for reason in row["reason_codes"])
     return {
         "rows": rows,
-        "counts": dict(sorted(outcome_counts.items())),
-        "reason_counts": dict(sorted(reason_counts.items())),
+        "counts": dict(Counter(row["outcome"] for row in rows)),
+        "reason_counts": dict(Counter(reason for row in rows for reason in row["reason_codes"])),
         "unresolved_count": sum(not row["resolved"] for row in rows),
         "resolved_count": sum(row["resolved"] for row in rows),
     }
@@ -168,34 +186,33 @@ def filter_candidate_review_queue(
     *,
     outcomes: object = None,
     reason_codes: object = None,
+    reasons: object = None,
     source_text: str = "",
+    source_query: str = "",
     lesson_text: str = "",
+    lesson: str = "",
     unresolved_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Filter queue rows without mutating the queue."""
     queue = _mapping(review_queue)
     rows = queue.get("rows") if isinstance(queue.get("rows"), list) else []
-    allowed_outcomes = {str(value) for value in outcomes} if isinstance(outcomes, (list, tuple, set)) else set()
-    allowed_reasons = {str(value) for value in reason_codes} if isinstance(reason_codes, (list, tuple, set)) else set()
-    source_query = _text(source_text).lower()
-    lesson_query = _text(lesson_text).lower()
+    allowed_outcomes = set(outcomes or [])
+    allowed_reasons = set(reason_codes or reasons or [])
+    source_terms = normalize_text(source_text or source_query).split()
+    lesson_query = normalize_text(lesson_text or lesson)
 
-    result = []
+    result: list[dict[str, Any]] = []
     for row in rows:
         if not isinstance(row, Mapping):
             continue
-        if allowed_outcomes and _text(row.get("outcome")) not in allowed_outcomes:
+        if allowed_outcomes and row.get("outcome") not in allowed_outcomes:
             continue
-        row_reasons = {str(value) for value in row.get("reason_codes", [])}
-        if allowed_reasons and not (row_reasons & allowed_reasons):
+        if allowed_reasons and not allowed_reasons.intersection(row.get("reason_codes", [])):
             continue
-        source_haystack = " ".join([
-            _text(row.get("source_name")),
-            _text(row.get("source_file")),
-        ]).lower()
-        if source_query and source_query not in source_haystack:
+        source_haystack = normalize_text(f"{row.get('source_name')} {row.get('source_file')}")
+        if source_terms and not all(term in source_haystack for term in source_terms):
             continue
-        if lesson_query and lesson_query not in _text(row.get("lesson")).lower():
+        if lesson_query and lesson_query not in normalize_text(row.get("lesson")):
             continue
         if unresolved_only and bool(row.get("resolved")):
             continue
@@ -204,11 +221,15 @@ def filter_candidate_review_queue(
 
 
 def review_queue_detail(review_queue: object, candidate_id: str) -> dict[str, Any] | None:
-    """Return one detached queue row for a detail panel."""
+    """Return a detached row for the UI detail panel."""
     queue = _mapping(review_queue)
     rows = queue.get("rows") if isinstance(queue.get("rows"), list) else []
     target = _text(candidate_id)
-    for row in rows:
-        if isinstance(row, Mapping) and _text(row.get("candidate_id")) == target:
-            return dict(row)
-    return None
+    return next(
+        (
+            dict(row)
+            for row in rows
+            if isinstance(row, Mapping) and _text(row.get("candidate_id")) == target
+        ),
+        None,
+    )
