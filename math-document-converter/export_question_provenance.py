@@ -13,6 +13,8 @@ from converter.question_provenance import (
     load_candidates,
     provenance_summary,
 )
+from converter.storage import ConverterStore
+from converter.matching_service import run_dry_match
 
 
 APP_DIR = Path(__file__).parent
@@ -71,12 +73,21 @@ def main() -> int:
         default=APP_DIR.parent / "toan-ai-local" / "question_candidates.json",
     )
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument(
+        "--refresh-matches",
+        action="store_true",
+        help="Refresh deterministic Converter dry-match rows before exporting provenance.",
+    )
     args = parser.parse_args()
 
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except (AttributeError, OSError):
         pass
+
+    if args.refresh_matches:
+        store = ConverterStore(args.db)
+        run_dry_match(store, args.db.parent, args.candidates.parent)
 
     rows = read_provenance_rows(args.db)
     candidates = load_candidates(args.candidates)
