@@ -139,6 +139,51 @@ class ConverterStore:
                     decision TEXT NOT NULL, decision_reason TEXT NOT NULL, match_score REAL NOT NULL,
                     validation_json TEXT NOT NULL, approved_by TEXT, created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS trusted_questions (
+                    question_id TEXT PRIMARY KEY,
+                    current_version INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS trusted_question_versions (
+                    id INTEGER PRIMARY KEY,
+                    question_id TEXT NOT NULL,
+                    version INTEGER NOT NULL,
+                    candidate_id TEXT,
+                    source_record_id TEXT,
+                    source_file TEXT NOT NULL,
+                    source_name TEXT,
+                    source_page INTEGER,
+                    source_page_end INTEGER,
+                    question_number INTEGER,
+                    grade TEXT,
+                    chapter TEXT,
+                    topic TEXT,
+                    lesson TEXT,
+                    skill TEXT,
+                    cognitive_level TEXT,
+                    difficulty TEXT,
+                    question_type TEXT NOT NULL,
+                    stem TEXT NOT NULL,
+                    options_json TEXT NOT NULL DEFAULT '[]',
+                    correct_answer TEXT,
+                    solution TEXT,
+                    formulas_json TEXT NOT NULL DEFAULT '[]',
+                    image_assets_json TEXT NOT NULL DEFAULT '[]',
+                    source_match_evidence_json TEXT NOT NULL DEFAULT '{}',
+                    math_verification_evidence_json TEXT NOT NULL DEFAULT '{}',
+                    teacher_review_evidence_json TEXT NOT NULL DEFAULT '{}',
+                    reviewer TEXT NOT NULL,
+                    reviewed_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    content_hash TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    UNIQUE(question_id, version),
+                    FOREIGN KEY(question_id) REFERENCES trusted_questions(question_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_trusted_question_versions_question ON trusted_question_versions(question_id);
                 """
             )
 
@@ -173,6 +218,7 @@ class ConverterStore:
                     connection.execute("DELETE FROM ocr_results WHERE page_id = ?", (page_id,))
                     connection.execute("DELETE FROM jobs WHERE page_id = ?", (page_id,))
                 connection.execute("DELETE FROM pages WHERE document_id = ?", (existing["id"],))
+
                 connection.execute(
                     "UPDATE documents SET source_hash=?, kind=?, page_count=?, updated_at=? WHERE id=?",
                     (source_hash, kind, len(pages), timestamp, existing["id"]),
@@ -348,13 +394,40 @@ class ConverterStore:
         with self.session() as connection:
             for item in outcomes:
                 top = (item.get("top_matches") or [{}])[0]
+                duplicate_score = float(item.get("match_score", 0)) if item.get("duplicate") else 0.0
                 connection.execute(
                     """INSERT INTO match_reviews(parser_draft_id, matched_candidate_id, match_score, duplicate_score, status, decision_reason, ambiguity, score_breakdown_json, validation_json, source_context_json, normalized_parser_text, created_at, updated_at)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                        ON CONFLICT(parser_draft_id) DO UPDATE SET matched_candidate_id=excluded.matched_candidate_id, match_score=excluded.match_score, duplicate_score=excluded.duplicate_score, status=excluded.status, decision_reason=excluded.decision_reason, ambiguity=excluded.ambiguity, score_breakdown_json=excluded.score_breakdown_json, validation_json=excluded.validation_json, source_context_json=excluded.source_context_json, normalized_parser_text=excluded.normalized_parser_text, updated_at=excluded.updated_at""",
-                    (item["parser_draft_id"], item.get("matched_candidate_id"), float(item.get("match_score", 0)), float(item.get("match_score", 0) if item.get("duplicate") else 0), item["status"], item["reason"], int(item.get("ambiguous", False)), json.dumps(top.get("breakdown", {}), ensure_ascii=False), json.dumps(item.get("validation", {}), ensure_ascii=False), json.dumps(item.get("source_context", {}), ensure_ascii=False), item.get("normalized_parser_data", ""), timestamp, timestamp),
+                    (
+                        item["parser_draft_id"],
+                        item.get("matched_candidate_id"),
+                        float(item.get("match_score", 0)),
+                        duplicate_score,
+                        item["status"],
+                        item["reason"],
+                        int(item.get("ambiguous", False)),
+                        json.dumps(top.get("breakdown", {}), ensure_ascii=False),
+                        json.dumps(item.get("validation", {}), ensure_ascii=False),
+                        json.dumps(item.get("source_context", {}), ensure_ascii=False),
+                        item.get("normalized_parser_data", ""),
+                        timestamp,
+                        timestamp,
+                    ),
                 )
-                connection.execute("INSERT INTO match_audit_log(parser_draft_id, matched_candidate_id, decision, decision_reason, match_score, validation_json, approved_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (item["parser_draft_id"], item.get("matched_candidate_id"), item["status"], item["reason"], float(item.get("match_score", 0)), json.dumps(item.get("validation", {}), ensure_ascii=False), "SYSTEM_DRY_RUN", timestamp))
+                connection.execute(
+                    "INSERT INTO match_audit_log(parser_draft_id, matched_candidate_id, decision, decision_reason, match_score, validation_json, approved_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        item["parser_draft_id"],
+                        item.get("matched_candidate_id"),
+                        item["status"],
+                        item["reason"],
+                        float(item.get("match_score", 0)),
+                        json.dumps(item.get("validation", {}), ensure_ascii=False),
+                        "SYSTEM_DRY_RUN",
+                        timestamp,
+                    ),
+                )
 
     def match_summary(self) -> dict:
         with self.session() as connection:
@@ -391,6 +464,57 @@ class ConverterStore:
         with self.session() as connection:
             return connection.execute(query, values).fetchall()
 
+    def get_match_review_for_promotion(self, parser_draft_id: int):
+        """Return the joined match/parser/document row needed by M3 promotion.
+
+        This method is intentionally separate from the review-queue query. It
+        returns explicit aliases so the promotion service can map evidence
+        fields without depending on UI-facing column names.
+        """
+        with self.session() as connection:
+            return connection.execute(
+                """
+                SELECT
+                    mr.id AS match_review_id,
+                    mr.parser_draft_id,
+                    mr.matched_candidate_id,
+                    mr.match_score,
+                    mr.duplicate_score,
+                    mr.status AS match_status,
+                    mr.decision_reason,
+                    mr.ambiguity,
+                    mr.score_breakdown_json,
+                    mr.validation_json AS match_validation_json,
+                    mr.source_context_json,
+                    mr.normalized_parser_text,
+                    mr.created_at AS match_created_at,
+                    mr.updated_at AS match_updated_at,
+                    pq.document_id,
+                    pq.first_page_number,
+                    pq.last_page_number,
+                    pq.question_number,
+                    pq.question_type,
+                    pq.question_text,
+                    pq.question_math_json,
+                    pq.options_json,
+                    pq.correct_answer,
+                    pq.solution,
+                    pq.images_json,
+                    pq.confidence AS parser_confidence,
+                    pq.raw_ocr_text,
+                    pq.flags_json,
+                    pq.validation_json AS parser_validation_json,
+                    pq.parser_version,
+                    d.source_path,
+                    d.kind
+                FROM match_reviews mr
+                JOIN parsed_questions pq ON pq.id = mr.parser_draft_id
+                JOIN documents d ON d.id = pq.document_id
+                WHERE mr.parser_draft_id = ?
+                """,
+                (parser_draft_id,),
+            ).fetchone()
+
     def record_manual_match_decision(self, parser_draft_id: int, decision: str, reason: str, approved_by: str = "TEACHER") -> None:
         """Record an auditable reviewer decision without touching source questions."""
         allowed = {"REVIEW_REQUIRED", "APPROVED_MANUAL", "REJECTED"}
@@ -412,3 +536,12 @@ class ConverterStore:
                 "INSERT INTO match_audit_log(parser_draft_id, matched_candidate_id, decision, decision_reason, match_score, validation_json, approved_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (parser_draft_id, row["matched_candidate_id"], decision, reason.strip() or "manual_review", float(row["match_score"]), row["validation_json"], approved_by, timestamp),
             )
+
+    def trusted_question_summary(self) -> dict:
+        with self.session() as connection:
+            rows = connection.execute("SELECT status, COUNT(*) AS amount FROM trusted_questions GROUP BY status").fetchall()
+            versions = connection.execute("SELECT COUNT(*) AS amount FROM trusted_question_versions").fetchone()["amount"]
+        return {
+            "questions": {row["status"]: row["amount"] for row in rows},
+            "versions": int(versions or 0),
+        }

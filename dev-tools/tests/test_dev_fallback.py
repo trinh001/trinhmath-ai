@@ -79,3 +79,52 @@ def test_safe_default_requires_explicit_commit_and_push(monkeypatch):
     args = dev_fallback.parse_args()
     assert args.commit is False
     assert args.push is False
+
+
+def test_safe_default_records_completion_values_without_commit(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    task = repo / "task.md"
+    task.write_text("offline task", encoding="utf-8")
+
+    monkeypatch.setattr("sys.argv", ["dev_fallback.py", "--repo", str(repo), "--task-file", str(task)])
+    monkeypatch.setattr(dev_fallback, "ensure_work_branch", lambda *_: "dev/test")
+    monkeypatch.setattr(
+        dev_fallback,
+        "run_codex",
+        lambda *_: dev_fallback.WorkerOutcome("codex", 0, False, ""),
+    )
+    monkeypatch.setattr(dev_fallback, "run_validation", lambda *_: True)
+    monkeypatch.setattr(dev_fallback, "git", lambda *_args, **_kwargs: "abc123")
+
+    assert dev_fallback.main() == 0
+    state = (repo / dev_fallback.STATE_DIR / dev_fallback.STATE_FILE).read_text(encoding="utf-8")
+    assert '"status": "COMPLETED"' in state
+    assert '"commit_sha": "abc123"' in state
+    assert '"push_status": "not-requested"' in state
+
+
+def test_print_stream_line_survives_legacy_console_encoding(monkeypatch):
+    class LegacyConsole:
+        encoding = "cp1252"
+
+        def __init__(self):
+            self.writes = []
+            self.calls = 0
+
+        def write(self, value):
+            self.calls += 1
+            if self.calls == 1:
+                value.encode(self.encoding)
+            self.writes.append(value)
+
+        def flush(self):
+            pass
+
+    console = LegacyConsole()
+    monkeypatch.setattr(dev_fallback.sys, "stdout", console)
+
+    dev_fallback.print_stream_line("M2 → candidate\n")
+
+    assert "\\u2192" in "".join(console.writes)

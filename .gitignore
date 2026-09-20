@@ -57,3 +57,4 @@ Thumbs.db
 # Keep its provenance in external/README.md and docs/open-source/ instead.
 external/*
 !external/README.md
+.aider*
