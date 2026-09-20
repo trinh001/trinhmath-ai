@@ -1,0 +1,53 @@
+[
+  {
+    "candidate_id": "golden-match",
+    "source_file": "synthetic.docx",
+    "source_name": "Synthetic source",
+    "question_number": 1,
+    "question_text": "Tính 2 + 3.",
+    "solution_text": "Đáp án: 5. Cộng hai số tự nhiên được 5.",
+    "correct_answer": "5",
+    "eligible_for_text_pipeline": true
+  },
+  {
+    "candidate_id": "golden-duplicate-a",
+    "source_file": "synthetic.docx",
+    "source_name": "Synthetic source",
+    "question_number": 2,
+    "question_text": "Tìm giá trị của x nếu x + 1 = 4.",
+    "solution_text": "Đáp án: 3. Trừ một ở hai vế được x bằng 3.",
+    "correct_answer": "3",
+    "eligible_for_text_pipeline": true
+  },
+  {
+    "candidate_id": "golden-duplicate-b",
+    "source_file": "synthetic.docx",
+    "source_name": "Synthetic source",
+    "question_number": 2,
+    "question_text": "Tìm giá trị của x nếu x + 1 = 4.",
+    "solution_text": "Đáp án: 3. Trừ một ở hai vế được x bằng 3.",
+    "correct_answer": "3",
+    "eligible_for_text_pipeline": true
+  },
+  {
+    "candidate_id": "golden-visual",
+    "source_file": "synthetic.docx",
+    "source_name": "Synthetic source",
+    "question_number": 3,
+    "question_text": "Tính chu vi tam giác đã cho.",
+    "solution_text": "Đáp án: 12. Cộng ba cạnh đã cho được 12.",
+    "correct_answer": "12",
+    "requires_visual_review": true,
+    "source_image_names": ["word/media/triangle.png"],
+    "eligible_for_text_pipeline": true
+  },
+  {
+    "candidate_id": "golden-invalid",
+    "source_file": "synthetic.docx",
+    "source_name": "Synthetic source",
+    "question_number": 4,
+    "question_text": "",
+    "solution_text": "Đáp án: 1.",
+    "eligible_for_text_pipeline": true
+  }
+]

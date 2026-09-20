@@ -119,3 +119,10 @@ _Cập nhật: 13/09/2026_
 - Fixture test chỉ gồm hai prompt synthetic vô danh. Runner không đọc source/OCR/database/question bank, không đọc key thật và không mở network trong CI.
 - Thêm test cho pilot OFF/dry-run/config thiếu/budget/item/payload/token/secret/malformed response/usage/routing/fake transport. Tổng **72 pytest** PASS (23 test provider/router/transport/pilot); self-check staging và converter suite PASS.
 - Chỉ sau PR/CI xanh và branch sạch mới dừng xin key/data scope/budget cho request thật đầu tiên.
+
+## Nhật ký M2 Data Factory Slice 1 — 20/09/2026
+
+- Thêm `candidate_classification.py` và launcher báo cáo chỉ đọc: mỗi candidate nhận đúng một trong ba kết quả `MATCHED`, `REVIEW_REQUIRED`, `INVALID`, kèm evidence source-match, structural/source-quality, duplicate và confidence/reason code. Không có nhánh nào tự chuyển `APPROVED` hoặc `RELEASED`.
+- Source match dùng trọng số công khai, có kiểm thử cho source trùng/không rõ, xung đột đáp án, duplicate, dữ kiện thiếu, hình/công thức cần đối chiếu và Math Verifier chưa kết luận. Mọi mơ hồ đi về `REVIEW_REQUIRED`; lỗi cấu trúc thiết yếu/parse không khôi phục/mâu thuẫn Toán là `INVALID`.
+- Report chỉ nhận JSON candidate/source metadata được chỉ định rõ và fixture test hoàn toàn synthetic; không đọc DB, OCR/source gốc hay dữ liệu học sinh, không ghi đè input và không gọi API. Full suite hiện đạt **87 pytest PASS**.
+- Đồng thời sửa guardrail injection môi trường: `{}` trong test/runner nay là môi trường rỗng thực sự, không kế thừa key/feature flag từ PowerShell đang chạy.

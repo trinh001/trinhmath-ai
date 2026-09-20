@@ -1,0 +1,27 @@
+[
+  {
+    "source_record_id": "synthetic.docx::1",
+    "source_file": "synthetic.docx",
+    "source_name": "Synthetic source",
+    "question_number": 1,
+    "question_text": "Tính 2 + 3.",
+    "correct_answer": "5"
+  },
+  {
+    "source_record_id": "synthetic.docx::2",
+    "source_file": "synthetic.docx",
+    "source_name": "Synthetic source",
+    "question_number": 2,
+    "question_text": "Tìm giá trị của x nếu x + 1 = 4.",
+    "correct_answer": "3"
+  },
+  {
+    "source_record_id": "synthetic.docx::3",
+    "source_file": "synthetic.docx",
+    "source_name": "Synthetic source",
+    "question_number": 3,
+    "question_text": "Tính chu vi tam giác đã cho.",
+    "correct_answer": "12",
+    "source_image_names": ["word/media/triangle.png"]
+  }
+]
