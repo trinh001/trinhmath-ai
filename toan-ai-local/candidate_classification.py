@@ -205,7 +205,23 @@ def _match_score(candidate: Mapping[str, Any], source: Mapping[str, Any], index:
 
 def source_match_evidence(candidate: Mapping[str, Any], sources: object) -> dict[str, Any]:
     """Return auditable, weighted evidence without including source text."""
-    matches = [_match_score(candidate, source, index) for index, source in enumerate(_source_records(sources), start=1)]
+    records = _source_records(sources)
+    candidate_file = normalize_text(candidate.get("source_file"))
+    indexed_records = None
+    if isinstance(sources, Mapping) and isinstance(sources.get("by_source_file"), Mapping):
+        indexed_records = sources["by_source_file"].get(candidate_file)
+    same_file_records = (
+        [source for source in indexed_records if isinstance(source, Mapping)]
+        if isinstance(indexed_records, list) else [
+            source for source in records
+            if candidate_file and normalize_text(source.get("source_file")) == candidate_file
+        ]
+    )
+    # A known exact file identity is stronger evidence than a broad text scan.
+    # Preserve every record for that file so duplicate/ambiguous source records
+    # still fail closed; only use the full catalog when file identity is absent.
+    records_to_compare = same_file_records or records
+    matches = [_match_score(candidate, source, index) for index, source in enumerate(records_to_compare, start=1)]
     matches.sort(key=lambda item: (-float(item["score"]), str(item["source_id"])))
     top = matches[0] if matches else None
     plausible = [item for item in matches if float(item["score"]) >= PLAUSIBLE_MATCH_THRESHOLD]
@@ -230,7 +246,8 @@ def source_match_evidence(candidate: Mapping[str, Any], sources: object) -> dict
         "status": status,
         "match_threshold": MATCH_THRESHOLD,
         "plausible_threshold": PLAUSIBLE_MATCH_THRESHOLD,
-        "catalog_size": len(matches),
+        "catalog_size": len(records),
+        "compared_source_count": len(matches),
         "top_match": top,
         "plausible_source_ids": [item["source_id"] for item in plausible],
     }

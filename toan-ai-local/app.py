@@ -31,15 +31,19 @@ from curriculum_coverage import (
     curriculum_lesson_key as _curriculum_lesson_key,
 )
 from source_quality import source_content_quality_issues
+from candidate_classification import classify_candidates
+from candidate_data_adapter import adapt_real_m2_inputs
 import importlib
 import local_review_workflow
 import source_review
+import candidate_review_queue
 
 # Streamlit giữ module giữa các lần rerun. Nạp lại rõ ràng để thay đổi của hàng
 # kiểm duyệt nguồn được phản ánh cùng lần chạy app, thay vì giữ API cũ trong
 # một phiên phát triển đang mở.
 local_review_workflow = importlib.reload(local_review_workflow)
 source_review = importlib.reload(source_review)
+candidate_review_queue = importlib.reload(candidate_review_queue)
 build_local_review_queue = source_review.build_local_review_queue
 build_local_source_batches = source_review.build_local_source_batches
 build_source_review_snapshot = source_review.build_source_review_snapshot
@@ -50,6 +54,8 @@ clear_local_draft_flag = local_review_workflow.clear_local_draft_flag
 flag_local_draft = local_review_workflow.flag_local_draft
 flag_local_draft_batch = local_review_workflow.flag_local_draft_batch
 review_decision_text = local_review_workflow.review_decision_text
+build_candidate_review_queue = candidate_review_queue.build_candidate_review_queue
+filter_candidate_review_queue = candidate_review_queue.filter_candidate_review_queue
 from health_checks import audit_data_links, has_data_link_errors, validate_curricula
 from problem_workspace import build_problem_review, local_study_hint
 from adaptive_learning import (
@@ -4792,7 +4798,96 @@ def main():
                         show_question_draft_preview(draft)
                     else:
                         st.error(draft)
+            # M2 is a derived, read-only classification view over the existing
+            # local candidate/source records.  It never writes candidate/source
+            # data and only reuses the established local-draft flag action.
+            m2_inputs = adapt_real_m2_inputs(candidates, get_sources())
+            m2_classification = classify_candidates(m2_inputs["candidates"], m2_inputs["source_match_input"])
             drafts = get_question_drafts()
+            m2_review_queue = build_candidate_review_queue(
+                m2_classification, candidates, get_image_analyses(), drafts
+            )
+            st.divider()
+            st.subheader("Hàng kiểm duyệt M2 — chỉ đối chiếu")
+            st.caption(
+                "Phân loại là bằng chứng cục bộ, không phải duyệt hay phát hành. "
+                "Nguồn thiếu bằng chứng khớp sẽ luôn giữ ở hàng giáo viên kiểm tra."
+            )
+            m2_metrics = st.columns(3)
+            m2_metrics[0].metric("Cần giáo viên xem", m2_review_queue["counts"].get("REVIEW_REQUIRED", 0))
+            m2_metrics[1].metric("Không đủ cấu trúc", m2_review_queue["counts"].get("INVALID", 0))
+            m2_metrics[2].metric("Khớp nguồn đủ mạnh", m2_review_queue["counts"].get("MATCHED", 0))
+            all_reason_codes = sorted({reason for row in m2_review_queue["rows"] for reason in row["reason_codes"]})
+            all_lessons = sorted({row["lesson"] for row in m2_review_queue["rows"] if row["lesson"]})
+            filter_left, filter_middle, filter_right = st.columns(3)
+            with filter_left:
+                selected_m2_outcomes = st.multiselect(
+                    "Kết quả M2", ["REVIEW_REQUIRED", "INVALID", "MATCHED"], default=["REVIEW_REQUIRED"], key="m2_outcome_filter"
+                )
+            with filter_middle:
+                selected_m2_reasons = st.multiselect("Lý do", all_reason_codes, key="m2_reason_filter")
+            with filter_right:
+                selected_m2_lesson = st.selectbox("Bài học", [""] + all_lessons, format_func=lambda value: value or "Tất cả", key="m2_lesson_filter")
+            selected_m2_source = st.text_input("Lọc nguồn", placeholder="Tên hoặc tệp nguồn", key="m2_source_filter")
+            filtered_m2_rows = filter_candidate_review_queue(
+                m2_review_queue,
+                outcomes=selected_m2_outcomes,
+                reasons=selected_m2_reasons,
+                source_query=selected_m2_source,
+                lesson=selected_m2_lesson,
+            )
+            st.caption(f"Hiển thị {len(filtered_m2_rows)}/{len(m2_review_queue['rows'])} candidate theo bộ lọc.")
+            if filtered_m2_rows:
+                st.dataframe(
+                    [{
+                        "Ưu tiên": " / ".join(str(value) for value in row["priority"][:2]),
+                        "Kết quả": row["outcome"],
+                        "Lý do": ", ".join(row["reason_codes"]),
+                        "Bài": row["lesson"],
+                        "Nguồn": row["source_name"],
+                        "Câu": row["question_number"],
+                        "Trạng thái review": row["review_state"],
+                    } for row in filtered_m2_rows],
+                    use_container_width=True, hide_index=True,
+                )
+                m2_labels = {
+                    f"{index + 1}. {row['outcome']} · {row['source_name']} · câu {row['question_number']}": row
+                    for index, row in enumerate(filtered_m2_rows)
+                }
+                selected_m2_row = m2_labels[st.selectbox("Xem chi tiết candidate M2", list(m2_labels), key="m2_review_row")]
+                st.markdown("#### Candidate và provenance")
+                provenance, evidence_column = st.columns(2)
+                with provenance:
+                    st.json({
+                        "candidate_id": selected_m2_row["candidate_id"],
+                        "source_file": selected_m2_row["source_file"],
+                        "source_name": selected_m2_row["source_name"],
+                        "question_number": selected_m2_row["question_number"],
+                        "review_state": selected_m2_row["review_state"],
+                        "review_note": selected_m2_row["review_state_note"],
+                    })
+                with evidence_column:
+                    st.json(selected_m2_row["evidence"])
+                st.code(selected_m2_row["source_review"].get("question_text") or "(Thiếu đề bài nguồn)")
+                st.code(selected_m2_row["source_review"].get("solution_text") or "(Thiếu lời giải nguồn)")
+                visuals = selected_m2_row["source_review"].get("visuals") or []
+                if visuals:
+                    with st.expander("Ngữ cảnh ảnh/công thức nguồn", expanded=False):
+                        st.json(visuals)
+                if selected_m2_row["can_flag_local_draft"]:
+                    with st.expander("Gắn cờ nháp cục bộ — không duyệt", expanded=False):
+                        category = st.selectbox(
+                            "Lý do gắn cờ", list(DECISION_LABELS),
+                            format_func=lambda value: DECISION_LABELS[value], key=f"m2_flag_category_{selected_m2_row['candidate_id']}",
+                        )
+                        note = st.text_area("Ghi chú giáo viên", key=f"m2_flag_note_{selected_m2_row['candidate_id']}")
+                        if st.button("Gắn cờ nháp — giữ nguyên nguồn", key=f"m2_flag_{selected_m2_row['candidate_id']}"):
+                            ok, message = flag_local_draft_after_teacher_review(selected_m2_row["candidate_id"], category, note)
+                            (st.success if ok else st.warning)(message)
+                            if ok:
+                                st.rerun()
+                else:
+                    st.info("Không có thao tác duyệt/phát hành tại hàng M2. Chỉ nháp parser cục bộ mới có thể được gắn cờ ở đây.")
             if drafts:
                 st.divider()
                 st.subheader("Duyệt bản nháp AI")
