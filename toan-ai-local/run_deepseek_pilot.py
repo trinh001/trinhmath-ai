@@ -89,7 +89,7 @@ def _live_environment_ready(environment: dict[str, str] | os._Environ[str]) -> t
 
 
 def run_pilot(*, live: bool, environment: dict[str, str] | os._Environ[str] | None = None) -> int:
-    environment = environment or os.environ
+    environment = os.environ if environment is None else environment
     tasks = load_synthetic_tasks()
     ensure_fast_only(tasks)
 

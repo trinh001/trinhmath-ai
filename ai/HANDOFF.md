@@ -4,38 +4,48 @@
 
 ## LAST COMPLETED
 
-Phase 3 now caps `max_output_tokens`/request `max_tokens`, total pilot token budget, JSON-only response format, HTTP 429->200 retry and truncated JSON rejection. All tests remain injected/offline; no API call or key.
+M2-S1 Candidate Classification Pipeline is implemented as a deterministic,
+read-only local slice.  It produces exactly `MATCHED`, `REVIEW_REQUIRED`, or
+`INVALID`; it never changes approval or release state.
 
 ## CURRENT STATE
 
-Narrow guard update is locally verified (21 targeted, 74 full tests; diff/secret gate PASS) and ready to commit/push. App still does not import or call the provider; feature/pilot flags remain OFF.
-
-## ACTIVE TASK
-
-Commit/push this narrow guard update, then stop. Do not merge or request a key.
+- `toan-ai-local/candidate_classification.py` combines explicit source-match
+  evidence, structural/source-quality checks, duplicate detection, optional
+  structured Math Verifier results, confidence scoring and clear reason codes.
+- `run_candidate_classification_report.py` reads only explicitly supplied JSON
+  candidate/source metadata and creates a derived report. It does not discover
+  a database, OCR/source files, student data, or call any API.
+- Ambiguous source/image/formula/math/duplicate cases fail closed to
+  `REVIEW_REQUIRED`; missing essential structure, unrecoverable parse and
+  mathematical contradiction are `INVALID`.
 
 ## ACTIVE BRANCH
 
-`codex/deepseek-pilot-prep-2026-09-20` tại thời điểm checkpoint này. Luôn kiểm tra bằng `git branch --show-current` trước khi tiếp tục.
-
-## LAST SAFE COMMIT
-
-`da8de28` — implementation checkpoint Phase 3 đã qua full local verification; lấy SHA hiện hành bằng `git log -1 --format=%H` trước khi tiếp tục.
+Use `git branch --show-current`; this checkpoint is on the dedicated M2 branch
+created from `origin/main` on 20/09/2026. Do not merge `main` automatically.
 
 ## TEST STATUS
 
-Provider/router/transport/pilot: PASS (23); full `toan-ai-local`: PASS (72); isolated self-check và converter checks: PASS. Xem `ai/TEST_STATUS.md`.
+M2 targeted tests and the full `toan-ai-local` suite pass locally (87 tests).
+The synthetic CLI report classifies all 5 fixture rows with no unclassified
+result. Empty injected environments remain isolated from system DeepSeek
+variables.
 
 ## KNOWN RISKS
 
-- First real run cần API key, data/budget approval, user-selected 5–20 sanitized tasks và separate review.
-- Current content counts và historical self-check không phải truy vấn live.
-- Math/image ambiguity vẫn bắt buộc teacher review.
+- Thresholds are deterministic policy defaults, not teacher approval.
+- A real local batch must be supplied explicitly and its report reviewed; no
+  classification is an approval/release decision.
+- Image/formula ambiguity and unsupported Math verification remain teacher work.
 
 ## BLOCKERS
 
-Không có blocker kỹ thuật cho verification local. API key/network/pilot thật là stop condition và chưa được ủy quyền.
+None for code verification. A real candidate/source batch is deliberately out
+of scope until a user selects it for read-only local analysis.
 
 ## NEXT EXACT ACTION
 
-After push, wait for new user scope; do not request a key, run a real pilot or merge `main`.
+Review this branch/PR, then choose a separately authorized, read-only local
+batch for measurement. Do not auto-approve, release, merge `main`, or send data
+to a provider.

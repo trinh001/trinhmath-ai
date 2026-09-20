@@ -154,7 +154,7 @@ class DeepSeekConfig:
 
     @classmethod
     def from_environment(cls, environment: Mapping[str, str] | None = None) -> "DeepSeekConfig":
-        environment = environment or os.environ
+        environment = os.environ if environment is None else environment
         return cls(
             enabled=_is_enabled(environment.get("TRINHMATH_DEEPSEEK_ENABLED")),
             fast_model=environment.get("DEEPSEEK_FAST_MODEL", "deepseek-flash"),
@@ -233,7 +233,7 @@ class DeepSeekProvider:
         transport: DeepSeekTransport | None = None,
     ):
         self.config = config or DeepSeekConfig.from_environment(environment)
-        self._environment = environment or os.environ
+        self._environment = os.environ if environment is None else environment
         self._transport = transport
 
     def run(self, request: ProviderRequest) -> ProviderResult:
