@@ -1,4 +1,5 @@
 import importlib.util
+import sys
 from pathlib import Path
 
 
@@ -6,6 +7,7 @@ MODULE_PATH = Path(__file__).resolve().parents[1] / "dev_fallback.py"
 SPEC = importlib.util.spec_from_file_location("dev_fallback", MODULE_PATH)
 dev_fallback = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
+sys.modules[SPEC.name] = dev_fallback
 SPEC.loader.exec_module(dev_fallback)
 
 
