@@ -3,290 +3,170 @@
 Run this package through `RUN_DEV_TASK_AUTO.bat`.
 
 The launcher runs Codex first. If Codex stops because quota/rate-limit is exhausted,
-DeepSeek/Aider continues from the SAME git working tree. Do not restart from scratch.
+DeepSeek/Aider continues from the SAME git working tree.
 
 AUTHORIZATION FOR THIS TASK:
-- the already-configured DeepSeek/Aider fallback is authorized to process PUBLIC/TRACKED REPOSITORY CODE only;
-- ordinary DeepSeek API usage through the existing DEEPSEEK_API_KEY is already authorized for this fallback workflow;
-- this is NOT authorization to read or send gitignored/private runtime data, OCR/source documents, databases, question-bank JSON, student data, credentials, or secrets;
-- do not stop merely because the authorized fallback may incur normal usage on the already-configured DeepSeek account;
-- stop if additional provider access, a new paid service, a balance top-up/budget increase, or private-data transmission would be required.
+- DeepSeek/Aider may process PUBLIC/TRACKED REPOSITORY CODE only;
+- ordinary DeepSeek API usage on the already-configured account is authorized;
+- do not read/send gitignored private runtime data, OCR/source documents, databases,
+  question-bank JSON, student data, credentials, or secrets to external models;
+- local deterministic scripts may process private runtime data and expose only aggregate/sanitized results.
 
-## TASK — Finish M2 on real local data, then build M3 foundation
+## TASK — M3-S1 Teacher Review Pilot: create the first trusted seed set
+
+Goal: turn the current 0 trusted provenance state into a small, teacher-reviewed,
+versioned trusted seed set without weakening any safety threshold.
 
 ### 0. Startup
 
-- Inspect current git branch/status/diff.
+- Inspect git branch/status/diff.
 - Read only `AGENTS.md` and `ai/HANDOFF.md` first.
-- Read other files only when required by the current subtask.
 - Do not reread the whole repository.
-- Never weaken review/release safety to improve metrics.
+- Preserve all M2/M3 fail-closed rules already merged.
 
-### 1. Run the real local M2 cycle
+### 1. Build a local-only review pilot
 
-Use the existing deterministic/local pipeline:
+Create or improve a teacher review workflow that works only on local data and does not
+send private question content to external services.
 
-`M2_PROVENANCE_ONE_SHOT.bat`
+The pilot should:
+- rank REVIEW_REQUIRED rows by safest deterministic review priority;
+- prefer rows with strongest source/question evidence first;
+- never mark anything approved automatically;
+- show enough evidence for a teacher to make a source-link decision quickly;
+- support explicit actions:
+  - APPROVED_MANUAL
+  - REVIEW_REQUIRED
+  - REJECTED
+- record reviewer, reason, timestamp, previous state, and audit trail;
+- be reversible where existing architecture allows it;
+- clearly separate source-match approval from trusted-bank promotion and student release.
 
-or run its underlying local commands directly if that is more reliable.
+### 2. High-confidence review shortlist
 
-Important privacy rule:
-- do NOT open/cat/include raw private files such as `question_candidates.json`,
-  `source_catalog.json`, `question_provenance.json`, Converter DB contents,
-  OCR text, source documents, or student data in model context;
-- scripts may process them locally;
-- inspect only aggregate/sanitized outputs needed to make engineering decisions;
-- no external API calls on private source/OCR/student data.
+Create a deterministic local shortlist generator for the first seed set.
 
-Record the aggregate result:
+Target:
+- 20 to 50 questions maximum for the pilot;
+- only rows with the strongest available evidence;
+- exclude ambiguity, parser validation failure, source-quality hard failure,
+  unresolved image/formula dependency, and contradictory math evidence;
+- do not lower source-match thresholds;
+- do not use an LLM to decide approval.
 
-- candidate_total
-- question_provenance_total
-- trusted_question_provenance_total
-- MATCHED
-- REVIEW_REQUIRED
-- INVALID
-- unclassified
-- duplicate_count
-- visual_formula_review_count
-- source_match_low_confidence_count
-- ambiguity_count
-- source_quality_review_count
-- math_conflict_count
-- top reason codes
+The shortlist may be exported locally as a gitignored JSON/CSV summary if useful,
+but must not be committed.
 
-### 2. Diagnose the real bottleneck
+### 3. Review UI efficiency
 
-Do not force MATCHED upward.
+In the local Streamlit review queue, add only concrete usability improvements that reduce
+teacher time, such as:
+- next/previous;
+- keyboard-friendly or single-click decision buttons;
+- filters for evidence/reason;
+- evidence summary;
+- source file/page/question number;
+- parser question text/options/answer/solution;
+- formula/image flags;
+- current match score/breakdown;
+- audit history.
 
-If trusted provenance is low or MATCHED remains low:
-- inspect code/schema, not private raw content;
-- trace deterministic evidence flow:
-  source identity -> question number/page -> parser match -> text/math-sensitive match ->
-  answer/options -> formula/image association -> validation -> provenance trust.
+Do not expose raw OCR bulk unless explicitly requested in the UI.
 
-Fix only genuine pipeline defects or missing deterministic evidence.
+### 4. Controlled promotion to M3 trusted bank
 
-Preserve math-sensitive distinctions:
-- x+1 != x-1
-- -1 != 1
-- operators and inequalities must survive normalization
-- conflicting answer/formula/operator/image evidence must fail closed.
+After a teacher sets APPROVED_MANUAL:
+- allow an explicit separate "Promote to Trusted Bank" action;
+- run all existing M3 fail-closed gates;
+- create a versioned trusted question;
+- show promotion success/failure reason;
+- never auto-release to students;
+- never bulk-promote without explicit teacher approval evidence.
 
-Do NOT lower thresholds merely to improve counts.
+Add a local summary:
+- reviewed_total
+- approved_manual
+- rejected
+- still_review_required
+- promoted_to_trusted
+- promotion_blocked
+- trusted_bank_total
+- trusted_bank_versions
 
-### 3. Complete M2 architecture
+### 5. Pilot acceptance criteria
 
-M2 is considered architecture-complete when:
+Architecture is ready when:
+- the review shortlist is deterministic;
+- no automatic approval exists;
+- every teacher decision is auditable;
+- promotion is explicit and separate from review;
+- trusted question history is versioned;
+- student release remains a separate gate;
+- private runtime data remains gitignored;
+- tests cover review and promotion state transitions;
+- no public/external API receives private question content.
 
-- 100% candidates end with MATCHED / REVIEW_REQUIRED / INVALID;
-- unclassified = 0;
-- file-level metadata cannot by itself produce trusted MATCHED;
-- question-level provenance has an auditable schema;
-- trusted/untrusted provenance is explicit;
-- ambiguous/conflicting evidence stays REVIEW_REQUIRED;
-- Review Queue exposes the evidence needed by a teacher;
-- teacher actions are auditable/reversible;
-- no AI can auto-approve or auto-release;
-- source/OCR raw data is unchanged;
-- local/private data remains excluded from Git.
+### 6. Tests
 
-Improve the Streamlit Review Queue only if the current implementation has a concrete usability or correctness gap.
-
-### 4. Expand deterministic Math Verifier only when justified by measurements
-
-Use aggregate M2 reason buckets to decide whether deterministic verification would materially reduce review load.
-
-Good candidates include structured:
-- arithmetic;
-- numeric short answers;
-- simple equations;
-- algebraic equivalence;
-- function evaluation;
-- elementary combinatorics/probability where claims are machine-checkable.
-
-Do not add risky free-form geometry heuristics merely to increase pass rate.
-
-Verifier outcomes remain:
-- VERIFIED
-- CONTRADICTED
-- INCONCLUSIVE
-- UNSUPPORTED
-
-Only VERIFIED counts as verified evidence.
-
-### 5. Build M3 Trusted Question Bank foundation after M2 gates pass
-
-Do not wait for all 4,843 questions to be teacher-approved.
-
-Create a versioned trusted-question model/service that can promote an already teacher-approved
-candidate/review record into a durable trusted bank entry.
-
-Minimum fields should support:
-
-- question_id
-- version
-- candidate_id
-- source_record_id / provenance references
-- source_file
-- source_page / page range
-- question_number
-- grade
-- chapter/topic/lesson/skill
-- cognitive_level
-- difficulty
-- question_type
-- stem
-- options
-- correct_answer
-- solution
-- formulas/latex
-- image assets/references
-- source-match evidence
-- math-verification evidence
-- teacher-review evidence
-- reviewer
-- reviewed_at
-- created_at
-- updated_at
-- content_hash
-- status
-
-Statuses at minimum:
-- DRAFT
-- REVIEW_REQUIRED
-- APPROVED
-- RETIRED
-
-If release is already modeled separately, preserve that separation.
-
-Rules:
-- only explicit teacher-approved content can become APPROVED;
-- no LLM can call promotion and create APPROVED autonomously;
-- editing approved content creates a new version instead of silently overwriting history;
-- provenance/review/math evidence remains traceable;
-- existence in the trusted bank does not bypass student release validation.
-
-### 6. Promotion service
-
-If not already cleanly represented, implement a controlled promotion service:
-
-candidate/review
--> validate required evidence
--> require teacher approval evidence
--> create immutable/versioned trusted question
-
-Fail closed when:
-- question text is missing;
-- source provenance is unresolved;
-- source/answer/math evidence is contradicted;
-- teacher approval evidence is absent/invalid;
-- required structure for the question type is incomplete.
-
-Add tests for all promotion gates.
-
-### 7. Tests
-
-Run all relevant tests and fix failures.
-
-Minimum:
-
-TrinhMath:
-`python -m pytest -q tests`
-
-Dev fallback:
-`python -m pytest -q dev-tools/tests`
-
-Converter:
-- `python test_core.py`
-- `python test_question_parser.py`
-- `python test_matching.py`
-- `python test_review_storage.py`
-- `python test_question_provenance.py`
-
-Also:
+Run:
+- `python -m pytest -q tests` in `toan-ai-local`
+- `python -m pytest -q dev-tools/tests`
+- Converter core/parser/matching/review/provenance/trusted-bank tests
 - py_compile changed Python modules
-- git diff --check
-- verify private runtime data remains ignored/untracked
-- verify no secret/private-data path is staged
+- `git diff --check`
+- check private/runtime/secret files are not staged/tracked
 
-Add regression coverage for any bug you fix.
+Add regression tests for:
+- shortlist exclusion rules
+- APPROVED_MANUAL audit trail
+- rejected/re-review states
+- promotion success
+- promotion fail-closed cases
+- version history remains immutable
 
-### 8. Git workflow
+### 7. Git workflow
 
-Work on the branch created by the external launcher.
+Work on the launcher-created branch.
 
-Do not merge main.
-
-Do not commit/push unless the launcher was explicitly started with those permissions.
-The safe default is:
-
+Safe default:
 code -> tests -> validated diff -> STOP
 
-Do not commit:
-- API keys
-- DB files
-- source documents
-- OCR output
-- question_candidates.json
-- source_catalog.json
-- question_provenance.json
-- student data
-- generated private review artifacts
+Do not merge main.
+Do not commit/push unless explicitly permitted by launcher/user.
+Do not commit private/runtime data.
 
-### 9. Stop conditions
+### 8. Stop conditions
 
-Stop only for a real safety/product boundary:
-
-- destructive DB/schema migration required;
-- potential data loss;
-- private data would need to be sent to an external model/service;
-- paid external API beyond the already-authorized DeepSeek fallback is required;
-- the existing DeepSeek account would require a new balance top-up or budget increase;
+Stop only if:
+- destructive DB migration is required;
+- data loss risk appears;
+- private data would need to go to an external model/service;
+- a new paid service, top-up, or budget increase is required;
 - production deployment is required;
-- auto-approval or auto-release would be required;
-- local schema/data is unreadable enough that continuing risks corruption.
+- auto-approval or auto-release would be required.
 
-Ordinary bugs, test failures, imports, schema adapters, UI defects and deterministic matching defects:
-fix them and continue.
+Ordinary bugs/test failures should be fixed and the package should continue.
 
-### 10. Final report
-
-Keep the final report concise:
+### 9. Final report
 
 BRANCH:
 PRIMARY WORKER:
-FALLBACK WORKER USED:
-DEEPSEEK ROUTE IF USED:
+FALLBACK USED:
 
-M2:
-candidate_total:
-trusted_provenance:
-MATCHED:
-REVIEW_REQUIRED:
-INVALID:
-unclassified:
-
-TOP BOTTLENECKS:
-1.
-2.
-3.
-
-M2 CHANGES:
--
-
-M3 FOUNDATION:
-done / partial / blocked
--
+REVIEW PILOT:
+shortlist_count:
+review_ui_ready:
+audit_ready:
+promotion_ready:
 
 TESTS:
--
 
 SAFETY:
-auto-approved:
-auto-released:
-external private-data API calls:
-private files staged:
+auto_approved:
+auto_released:
+external_private_data_calls:
+private_files_staged:
 
 NEXT PACKAGE:
-Give exactly one recommended next package.
+Give exactly one next package. Prefer exam-generation/export only after at least a small
+teacher-approved trusted seed set exists.
