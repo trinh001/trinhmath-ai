@@ -506,6 +506,7 @@ class ConverterStore:
                     pq.validation_json AS parser_validation_json,
                     pq.parser_version,
                     d.source_path,
+                    d.source_hash,
                     d.kind
                 FROM match_reviews mr
                 JOIN parsed_questions pq ON pq.id = mr.parser_draft_id
