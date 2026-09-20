@@ -1,24 +1,50 @@
-# Hàng đợi công việc TrinhMath AI
+# TrinhMath AI — Task queue
 
-_Cập nhật checkpoint: 20/09/2026. Trạng thái Git thật phải lấy bằng Git, không suy ra từ file này._
+Git is the source of truth for branch/commit state.
 
-## Đang thực hiện
+## ACTIVE — M2 Data Factory Integration
 
-- Phase 3 pilot prep đã dựng và push trên branch mới từ `origin/main`; local tests, self-check, converter checks, diff/security gate PASS. PR/CI chờ submission GitHub được xác nhận. Provider chưa được tích hợp vào `app.py`, chưa gọi mạng và không có key/API thật.
+### M2-S2/S3 Integration Pack
+- Run M2-S1 on the real local candidate population in read-only mode.
+- Adapt real local schema to the classifier contract if needed.
+- Produce aggregate-only outcome/reason metrics.
+- Build deterministic review queue from classification + existing source-review context.
+- Integrate queue into teacher Streamlit UX.
+- Keep review-only actions separate from approval/release.
+- Test and push for review.
 
-## Việc tiếp theo đủ điều kiện (sau checkpoint sạch)
+## NEXT — M2-S4 Verification expansion
 
-1. Review diff/CI của Phase 3. Chỉ sau CI xanh và branch sạch mới dừng tại blocker xin key/data scope/budget cho first real run.
-2. Khi có user approval cho data scope/budget/key, chọn 5–20 task sanitized riêng; không gọi API trước stop condition đó.
-3. Giáo viên đối chiếu draft parser cục bộ với nguồn; công thức/hình chưa rõ vẫn `BLOCK + REQUIRE TEACHER REVIEW`.
-4. Khi có đủ câu approved theo bài, kiểm thử end-to-end student flow không đổi trạng thái phát hành tự động.
+After S2/S3 metrics identify the high-volume reason buckets:
+- expand deterministic Math Verifier support only where it meaningfully reduces teacher review;
+- improve formula/image/source adapters where evidence shows a real bottleneck;
+- keep unsupported/ambiguous cases in teacher review.
 
-## Chưa được tự triển khai
+## THEN — M3 Trusted Question Bank
 
-- Không cài/vận hành C2C, Cloudflare tunnel, OAuth hoặc Node bridge.
-- Không cài/vận hành DeepSeek/Qwen, không gọi paid API và không đặt key/budget.
-- Không deploy cloud, migration database, thay đổi quyền, hay phát hành nội dung.
+- Stable approved-question schema with provenance/versioning/evidence/reviewer.
+- Controlled promotion from reviewed candidates.
+- Coverage goals and quality metrics.
+- No AI-only approval.
 
-## Quy tắc xếp hàng
+## THEN — M4 Teacher Product
 
-Ưu tiên task reversible, local-first, có test độc lập và không đụng source/OCR/student data. Dừng khi chạm stop condition trong `AGENTS.md` hoặc `ai/PROVIDER_POLICY.md`.
+- Exam blueprint/selection.
+- Duplicate/difficulty/answer-distribution validation.
+- DOCX/PDF/LaTeX export with answer key, solutions, matrix/specification.
+
+## PARALLEL AI INFRASTRUCTURE TRACK
+
+Build only when a measured workflow needs it, but build it rigorously:
+- task dispatcher / coding worker for Codex↔DeepSeek fallback;
+- audit log: planner, executor, model/profile, branch, commit, tests, review;
+- quota/budget/fallback policy;
+- secrets isolation;
+- fail-closed provider handling;
+- optional 9Router only if multi-provider orchestration gives measurable benefit.
+
+AI infrastructure must not bypass product safety, source privacy, DB controls, or review/release gates.
+
+## GLOBAL RULES
+
+Local/deterministic first. External AI only when it adds measurable value. No AI auto-approves or releases content.
