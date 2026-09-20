@@ -78,3 +78,47 @@ def test_aggregate_metrics_and_measurement_only_return_counts(tmp_path):
     assert metrics["unclassified_count"] == 0
     assert "classifications" not in metrics
     assert aggregate_classification_metrics({"candidate_count": 0, "outcome_counts": {}, "classifications": []})["candidate_total"] == 0
+
+
+def test_teacher_flagged_local_draft_can_be_restored_but_not_flagged_again():
+    candidates = [raw_candidate()]
+    adapted = adapt_real_m2_inputs(candidates, [raw_source()])
+    report = classify_candidates(adapted["candidates"], adapted["source_match_input"])
+    drafts = {
+        "candidate-1": {
+            "provenance": "strict_local_short_answer_parser",
+            "status": "Đã gắn cờ — không duyệt cho đến khi đối chiếu lại",
+            "review_decision": {"category": "other", "note": "Đã xem"},
+        }
+    }
+
+    queue = build_candidate_review_queue(report, candidates, {}, drafts)
+    row = queue["rows"][0]
+
+    assert row["review_state"] == "TEACHER_FLAGGED"
+    assert row["resolved"] is True
+    assert row["can_restore_local_draft"] is True
+    assert row["can_flag_local_draft"] is False
+
+
+def test_manual_formula_override_reaches_source_review_snapshot():
+    candidates = [
+        raw_candidate(
+            legacy_math_image_names=["word/media/formula.wmf"],
+            requires_visual_review=True,
+        )
+    ]
+    adapted = adapt_real_m2_inputs(candidates, [raw_source()])
+    report = classify_candidates(adapted["candidates"], adapted["source_match_input"])
+
+    queue = build_candidate_review_queue(
+        report,
+        candidates,
+        {},
+        {},
+        {"candidate-1": {"word/media/formula.wmf": "x+1=2"}},
+    )
+
+    row = queue["rows"][0]
+    assert row["source_review"]["requires_visual_review"] is True
+    assert row["classification_scope"] == "READ_ONLY_NO_APPROVAL_OR_RELEASE_CHANGE"
