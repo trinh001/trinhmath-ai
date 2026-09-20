@@ -15,9 +15,31 @@ if errorlevel 1 (
   echo [OK] Codex CLI found.
 )
 
+set "PY_CMD="
+where py >nul 2>&1
+if not errorlevel 1 set "PY_CMD=py"
+
+if "%PY_CMD%"=="" (
+  where python >nul 2>&1
+  if not errorlevel 1 set "PY_CMD=python"
+)
+
+if "%PY_CMD%"=="" (
+  where python3 >nul 2>&1
+  if not errorlevel 1 set "PY_CMD=python3"
+)
+
+if "%PY_CMD%"=="" (
+  echo [ERROR] Python was not found in PATH.
+  echo Install Python 3 or add python.exe to PATH, then run this file again.
+  goto :fail
+)
+
+echo [OK] Python launcher: %PY_CMD%
+
 if not exist ".dev-fallback-venv\Scripts\python.exe" (
   echo [1/3] Creating isolated Aider environment...
-  py -m venv .dev-fallback-venv
+  %PY_CMD% -m venv .dev-fallback-venv
   if errorlevel 1 goto :fail
 )
 
