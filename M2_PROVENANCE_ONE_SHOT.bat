@@ -9,17 +9,17 @@ set "PROVENANCE_FILE=%TOAN_DIR%\question_provenance.json"
 if exist "%CONVERTER_DIR%\.venv\Scripts\python.exe" (
   set "CONVERTER_PY=%CONVERTER_DIR%\.venv\Scripts\python.exe"
 ) else (
-  set "CONVERTER_PY=python"
+  set "CONVERTER_PY=py"
 )
 
 if exist "%TOAN_DIR%\.venv\Scripts\python.exe" (
   set "TOAN_PY=%TOAN_DIR%\.venv\Scripts\python.exe"
 ) else (
-  set "TOAN_PY=python"
+  set "TOAN_PY=py"
 )
 
-echo [1/3] Exporting trusted question-level provenance...
-"%CONVERTER_PY%" "%CONVERTER_DIR%\export_question_provenance.py" --output "%PROVENANCE_FILE%"
+echo [1/3] Refreshing local matches and exporting trusted question-level provenance...
+"%CONVERTER_PY%" "%CONVERTER_DIR%\export_question_provenance.py" --refresh-matches --output "%PROVENANCE_FILE%"
 if errorlevel 1 goto :fail
 
 echo.
