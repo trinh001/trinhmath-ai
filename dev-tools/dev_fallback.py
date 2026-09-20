@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-DEEPSEEK_FLASH_MODEL = "deepseek/deepseek-v4-flash"
+DEEPSEEK_FLASH_MODEL = "deepseek/deepseek-flash"
 DEEPSEEK_PRO_MODEL = "deepseek/deepseek-v4-pro"
 DEEPSEEK_API_BASE = "https://api.deepseek.com"
 STATE_DIR = ".dev-fallback"
@@ -148,7 +148,9 @@ def choose_deepseek_route(task: str, paths: Iterable[str] = ()) -> DeepSeekDevRo
 
 
 def is_private_path(path: str) -> bool:
-    normalized = path.replace("\\", "/").lstrip("./")
+    normalized = path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
     return any(pattern.search(normalized) for pattern in PRIVATE_PATH_PATTERNS)
 
 
