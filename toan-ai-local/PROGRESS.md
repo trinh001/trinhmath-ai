@@ -141,3 +141,10 @@ _Cập nhật: 13/09/2026_
 - File-level source catalog được đánh dấu rõ `provenance_trusted=False`; classifier M2 chỉ cho `MATCHED` khi top source là provenance tin cậy. Không hạ threshold để ép tăng MATCHED.
 - TrinhMath đọc file cục bộ `question_provenance.json` (đã gitignore). Thêm `M2_PROVENANCE_ONE_SHOT.bat` để export provenance từ Converter rồi chạy lại toàn bộ M2 trong một lượt, không gọi API ngoài.
 - Sửa lỗi hiển thị priority trong hàng M2: priority là số thứ tự, không còn bị xử lý như list.
+
+## Nhật ký M2 local checkpoint và nền tảng M3 — 20/09/2026
+
+- Đã chạy một lượt M2 provenance hoàn toàn cục bộ: 4.843 candidate, 779 record provenance cấp câu, `MATCHED=0`, `REVIEW_REQUIRED=4.843`, `INVALID=0`, `unclassified=0`. Không có trạng thái duyệt hoặc phát hành nào bị thay đổi.
+- Không có record provenance nào được coi là tin cậy khi chưa có liên kết nguồn được giáo viên duyệt rõ ràng. Các điểm nghẽn thực tế gồm source match confidence thấp (4.829), hình/công thức cần đối chiếu (4.063), source quality review (1.648) và candidate trùng (1.043). Không hạ ngưỡng để tăng MATCHED.
+- Converter có nền tảng M3 versioned trusted-question: chỉ review `APPROVED_MANUAL` của giáo viên, evidence giáo viên không rỗng, provenance nguồn rõ, cấu trúc đề/đáp án/lời giải đầy đủ và Math evidence không mâu thuẫn mới được promote thành `APPROVED`. Việc này không thay thế release validation cho học sinh.
+- Regression hiện đạt: 110 pytest của `toan-ai-local`, 9 pytest cho development fallback, và sáu check Converter (có trusted-bank gate). Không commit database, OCR, nguồn, question bank hay dữ liệu học sinh.

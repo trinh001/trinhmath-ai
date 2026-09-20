@@ -161,6 +161,19 @@ def split_command(value: str) -> list[str]:
     return shlex.split(value)
 
 
+def print_stream_line(line: str) -> None:
+    """Write worker output without letting a legacy Windows console abort the run."""
+    try:
+        print(line, end="", flush=True)
+    except UnicodeEncodeError:
+        # Codex/Aider emit UTF-8, while some Windows consoles still expose cp1252.
+        # Preserve the run and make unsupported characters visible instead of
+        # crashing before fallback and validation guards can execute.
+        encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+        safe_line = line.encode(encoding, errors="backslashreplace").decode(encoding, errors="replace")
+        print(safe_line, end="", flush=True)
+
+
 def run_streaming(
     command: list[str],
     *,
@@ -188,7 +201,7 @@ def run_streaming(
     chunks: list[str] = []
     assert process.stdout is not None
     for line in process.stdout:
-        print(line, end="", flush=True)
+        print_stream_line(line)
         chunks.append(line)
         total = sum(len(item) for item in chunks)
         while total > tail_limit and len(chunks) > 1:
@@ -545,8 +558,10 @@ def main() -> int:
             state.commit_sha = sha
             state.push_status = push_status
         else:
-            state.commit_sha = git(repo, "rev-parse", "HEAD")
-            state.push_status = "not-requested"
+            sha = git(repo, "rev-parse", "HEAD")
+            push_status = "not-requested"
+            state.commit_sha = sha
+            state.push_status = push_status
             print("[dev-fallback] validation passed; safe default leaves changes uncommitted/unpushed.")
         state.status = "COMPLETED"
         state.active_worker = ""

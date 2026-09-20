@@ -27,6 +27,14 @@ The last known real M2 measurement before question-level provenance was:
 
 That result reflected file-level source metadata only and must not be treated as the post-provenance result.
 
+## LATEST LOCAL M2 / M3 CHECKPOINT — 20/09/2026
+
+- The local-only provenance cycle completed with 4,843 candidates and 779 question-level provenance records; none are trusted until an explicit teacher-approved source match exists.
+- Outcomes remain fail-closed: `MATCHED=0`, `REVIEW_REQUIRED=4,843`, `INVALID=0`, `unclassified=0`. No approval or release state changed.
+- Main review bottlenecks are low-confidence source matching (4,829), image/formula review (4,063), source-quality review (1,648), and duplicate candidates (1,043). Do not lower matching thresholds to improve these counts.
+- The Converter now has a versioned M3 trusted-question foundation. Promotion requires an `APPROVED_MANUAL` teacher match, non-empty teacher evidence, source provenance, complete question structure, and non-contradicted math evidence. Promotion itself never releases content to students.
+- Latest local checks: 110 `toan-ai-local` pytest tests, 9 fallback-tooling pytest tests, and six Converter checks (including trusted-bank gates) passed. No private runtime file is staged.
+
 ## DEVELOPMENT WORKFLOW
 
 For long coding packages requiring automatic quota fallback:
@@ -71,4 +79,4 @@ Do not allow any AI to auto-approve or auto-release content.
 
 ## NEXT AFTER CURRENT TASK
 
-Use the real post-provenance M2 aggregate and the resulting M3 foundation to choose one next product package. Prefer moving toward the teacher workflow: trusted bank -> exam generation -> Word/PDF export, unless measured M2 bottlenecks still block safe promotion.
+Use the real post-provenance M2 aggregate and the resulting M3 foundation to choose one next product package. The current measured bottleneck is teacher source/formula review; begin with a small, teacher-reviewed set of explicit `APPROVED_MANUAL` matches before any exam-generation work.
