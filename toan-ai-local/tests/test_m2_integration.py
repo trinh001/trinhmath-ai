@@ -122,3 +122,97 @@ def test_manual_formula_override_reaches_source_review_snapshot():
     row = queue["rows"][0]
     assert row["source_review"]["requires_visual_review"] is True
     assert row["classification_scope"] == "READ_ONLY_NO_APPROVAL_OR_RELEASE_CHANGE"
+
+
+def trusted_question_provenance(**overrides):
+    value = {
+        "source_record_id": "converter:1",
+        "source_file": "raw.docx",
+        "source_name": "Raw source",
+        "question_number": 1,
+        "question_text": "Tính 2 + 2.",
+        "correct_answer": "",
+        "options": [],
+        "formula_fingerprint": "",
+        "matched_candidate_id": "candidate-1",
+        "provenance_kind": "converter_question_parser_match",
+        "provenance_trusted": True,
+    }
+    value.update(overrides)
+    return value
+
+
+def test_file_catalog_metadata_alone_cannot_confirm_match():
+    adapted = adapt_real_m2_inputs([raw_candidate()], [raw_source()])
+    report = classify_candidates(adapted["candidates"], adapted["source_match_input"])
+
+    row = report["classifications"][0]
+
+    assert row["outcome"] == "REVIEW_REQUIRED"
+    assert row["evidence"]["source_match"]["status"] == "INSUFFICIENT_EVIDENCE"
+    assert row["evidence"]["source_match"]["top_match"]["provenance_trusted"] is False
+
+
+def test_trusted_question_provenance_can_confirm_exact_candidate_match():
+    adapted = adapt_real_m2_inputs(
+        [raw_candidate()],
+        [raw_source()],
+        [trusted_question_provenance()],
+    )
+    report = classify_candidates(adapted["candidates"], adapted["source_match_input"])
+
+    row = report["classifications"][0]
+
+    assert adapted["schema_summary"]["trusted_question_provenance_count"] == 1
+    assert row["outcome"] == "MATCHED"
+    assert row["evidence"]["source_match"]["candidate_linked_source_count"] == 1
+    assert row["evidence"]["source_match"]["top_match"]["matched_candidate_id"] == "candidate-1"
+
+
+def test_untrusted_question_provenance_stays_review_required():
+    adapted = adapt_real_m2_inputs(
+        [raw_candidate()],
+        [raw_source()],
+        [trusted_question_provenance(provenance_trusted=False)],
+    )
+    report = classify_candidates(adapted["candidates"], adapted["source_match_input"])
+
+    assert report["classifications"][0]["outcome"] == "REVIEW_REQUIRED"
+
+
+def test_measurement_reads_optional_question_provenance(tmp_path):
+    candidates_path = tmp_path / "candidates.json"
+    sources_path = tmp_path / "sources.json"
+    provenance_path = tmp_path / "question_provenance.json"
+    candidates_path.write_text(json.dumps([raw_candidate()], ensure_ascii=False), encoding="utf-8")
+    sources_path.write_text(json.dumps([raw_source()], ensure_ascii=False), encoding="utf-8")
+    provenance_path.write_text(
+        json.dumps([trusted_question_provenance()], ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    measured = run_measurement(candidates_path, sources_path, provenance_path)
+
+    assert measured["schema_summary"]["trusted_question_provenance_count"] == 1
+    assert measured["metrics"]["outcome_counts"]["MATCHED"] == 1
+
+
+def test_trusted_candidate_link_ignores_untrusted_link_noise():
+    adapted = adapt_real_m2_inputs(
+        [raw_candidate()],
+        [raw_source()],
+        [
+            trusted_question_provenance(source_record_id="converter:trusted"),
+            trusted_question_provenance(
+                source_record_id="converter:untrusted",
+                question_text="Nội dung OCR khác hẳn.",
+                provenance_trusted=False,
+            ),
+        ],
+    )
+    report = classify_candidates(adapted["candidates"], adapted["source_match_input"])
+    match = report["classifications"][0]["evidence"]["source_match"]
+
+    assert match["candidate_linked_source_count"] == 2
+    assert match["trusted_candidate_linked_source_count"] == 1
+    assert report["classifications"][0]["outcome"] == "MATCHED"

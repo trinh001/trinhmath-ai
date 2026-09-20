@@ -132,3 +132,12 @@ _Cập nhật: 13/09/2026_
 - Thêm adapter schema local, aggregate runner và hàng kiểm duyệt M2 trên đúng màn kiểm duyệt hiện có. Lô local 4.843 candidate chỉ được đọc; mọi candidate nhận outcome và không có candidate nào được duyệt/phát hành tự động.
 - Catalog nguồn hiện chỉ có metadata cấp tệp nên 4.843 candidate được giữ ở `REVIEW_REQUIRED` thay vì suy diễn khớp câu. Báo cáo Git chỉ lưu aggregate không chứa nội dung nguồn/OCR/dữ liệu học sinh.
 - Hàng M2 tái dùng source snapshot và workflow gắn cờ nháp cục bộ; giáo viên có thể lọc outcome/lý do/nguồn/bài, xem provenance/evidence và chỉ gắn cờ có thể khôi phục.
+
+
+## Nhật ký M2-S4 Question-level Provenance — 20/09/2026
+
+- Bổ sung lớp provenance cấp câu từ Converter: parser draft + match review + candidate gốc tạo thành source record có trang, câu, đáp án/phương án, công thức, hình, confidence và audit trạng thái ghép.
+- Chỉ trạng thái ghép Converter `APPROVED` hoặc `APPROVED_MANUAL`, không mơ hồ, validation pass và có đề bài mới được đánh dấu `provenance_trusted=True`. Đây chỉ là xác nhận liên kết nguồn, không phải duyệt nội dung cho học sinh.
+- File-level source catalog được đánh dấu rõ `provenance_trusted=False`; classifier M2 chỉ cho `MATCHED` khi top source là provenance tin cậy. Không hạ threshold để ép tăng MATCHED.
+- TrinhMath đọc file cục bộ `question_provenance.json` (đã gitignore). Thêm `M2_PROVENANCE_ONE_SHOT.bat` để export provenance từ Converter rồi chạy lại toàn bộ M2 trong một lượt, không gọi API ngoài.
+- Sửa lỗi hiển thị priority trong hàng M2: priority là số thứ tự, không còn bị xử lý như list.

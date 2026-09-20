@@ -19,7 +19,7 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -r toan-ai-local/requirements-dev.txt
       - name: Compile TrinhMath modules
-        run: python -m py_compile toan-ai-local/app.py toan-ai-local/source_analyzer.py toan-ai-local/self_check.py toan-ai-local/source_quality.py toan-ai-local/source_review.py toan-ai-local/local_review_workflow.py toan-ai-local/candidate_triage.py toan-ai-local/curriculum_coverage.py toan-ai-local/variant_validation.py toan-ai-local/adaptive_learning.py toan-ai-local/grading.py toan-ai-local/math_verifier.py toan-ai-local/variant_review_service.py toan-ai-local/ai_provider.py toan-ai-local/model_router.py toan-ai-local/deepseek_pilot.py
+        run: python -m py_compile toan-ai-local/app.py toan-ai-local/source_analyzer.py toan-ai-local/self_check.py toan-ai-local/source_quality.py toan-ai-local/source_review.py toan-ai-local/local_review_workflow.py toan-ai-local/candidate_triage.py toan-ai-local/candidate_classification.py toan-ai-local/candidate_data_adapter.py toan-ai-local/candidate_review_queue.py toan-ai-local/run_local_m2_measurement.py toan-ai-local/curriculum_coverage.py toan-ai-local/variant_validation.py toan-ai-local/adaptive_learning.py toan-ai-local/grading.py toan-ai-local/math_verifier.py toan-ai-local/variant_review_service.py toan-ai-local/ai_provider.py toan-ai-local/model_router.py toan-ai-local/deepseek_pilot.py
       - name: Run isolated TrinhMath tests
         working-directory: toan-ai-local
         run: python -m pytest -q tests
@@ -34,7 +34,7 @@ jobs:
       - name: Install converter dependencies
         run: python -m pip install -r math-document-converter/requirements.txt
       - name: Compile Converter modules
-        run: python -m py_compile math-document-converter/app.py math-document-converter/converter/storage.py math-document-converter/converter/matching.py math-document-converter/converter/matching_service.py
+        run: python -m py_compile math-document-converter/app.py math-document-converter/export_question_provenance.py math-document-converter/converter/storage.py math-document-converter/converter/matching.py math-document-converter/converter/matching_service.py math-document-converter/converter/question_provenance.py
       - name: Run Converter tests
         working-directory: math-document-converter
         run: |
@@ -42,3 +42,4 @@ jobs:
           python test_question_parser.py
           python test_matching.py
           python test_review_storage.py
+          python test_question_provenance.py

@@ -14,22 +14,47 @@ def _load(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def run_measurement(candidate_path: Path, source_path: Path) -> dict:
-    adapted = adapt_real_m2_inputs(_load(candidate_path), _load(source_path))
+def run_measurement(
+    candidate_path: Path,
+    source_path: Path,
+    question_provenance_path: Path | None = None,
+) -> dict:
+    provenance = _load(question_provenance_path) if question_provenance_path and question_provenance_path.exists() else []
+    adapted = adapt_real_m2_inputs(
+        _load(candidate_path),
+        _load(source_path),
+        provenance,
+    )
     report = classify_candidates(adapted["candidates"], adapted["source_match_input"])
-    return {"schema_summary": adapted["schema_summary"], "metrics": aggregate_classification_metrics(report)}
+    return {
+        "schema_summary": adapted["schema_summary"],
+        "metrics": aggregate_classification_metrics(report),
+    }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Read-only aggregate M2 measurement.")
     parser.add_argument("--candidates", type=Path, default=Path("question_candidates.json"))
     parser.add_argument("--sources", type=Path, default=Path("source_catalog.json"))
+    parser.add_argument(
+        "--question-provenance",
+        type=Path,
+        default=Path("question_provenance.json"),
+        help="Optional local Converter provenance export; omitted/missing keeps all matches review-only.",
+    )
     args = parser.parse_args()
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except (AttributeError, OSError):
         pass
-    print(json.dumps(run_measurement(args.candidates, args.sources), ensure_ascii=False, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            run_measurement(args.candidates, args.sources, args.question_provenance),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
 
 

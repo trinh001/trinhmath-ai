@@ -100,6 +100,7 @@ CURRICULUM_FILE = APP_DIR / "curriculum_grade12.json"
 CURRICULUM_GRADE10_FILE = APP_DIR / "curriculum_grade10.json"
 CURRICULUM_GRADE11_FILE = APP_DIR / "curriculum_grade11.json"
 CANDIDATES_FILE = APP_DIR / "question_candidates.json"
+QUESTION_PROVENANCE_FILE = APP_DIR / "question_provenance.json"
 IMAGE_ANALYSIS_FILE = APP_DIR / "image_analysis.json"
 QUESTION_DRAFTS_FILE = APP_DIR / "question_drafts.json"
 MANUAL_FORMULA_OVERRIDES_FILE = APP_DIR / "manual_formula_overrides.json"
@@ -238,6 +239,15 @@ def save_gemini_key_for_this_laptop(key):
         return False
     GEMINI_KEY_FILE.write_bytes(protected)
     return True
+
+
+def get_question_provenance():
+    """Read local derived question-level provenance; malformed/missing means none."""
+    try:
+        value = json.loads(QUESTION_PROVENANCE_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return value if isinstance(value, list) else []
 
 
 def get_ai_scan_status():
@@ -4801,7 +4811,11 @@ def main():
             # M2 is a derived, read-only classification view over the existing
             # local candidate/source records.  It never writes candidate/source
             # data and only reuses the established local-draft flag action.
-            m2_inputs = adapt_real_m2_inputs(candidates, get_sources())
+            m2_inputs = adapt_real_m2_inputs(
+                candidates,
+                get_sources(),
+                get_question_provenance(),
+            )
             m2_classification = classify_candidates(m2_inputs["candidates"], m2_inputs["source_match_input"])
             drafts = get_question_drafts()
             manual_formula_overrides = {
@@ -4828,6 +4842,13 @@ def main():
             st.caption(
                 "Phân loại là bằng chứng cục bộ, không phải duyệt hay phát hành. "
                 "Nguồn thiếu bằng chứng khớp sẽ luôn giữ ở hàng giáo viên kiểm tra."
+            )
+            provenance_stats = m2_inputs.get("schema_summary", {})
+            trusted_provenance = int(provenance_stats.get("trusted_question_provenance_count", 0) or 0)
+            total_provenance = int(provenance_stats.get("question_provenance_count", 0) or 0)
+            st.caption(
+                f"Bằng chứng cấp câu từ Converter: {trusted_provenance}/{total_provenance} bản ghi đủ điều kiện provenance. "
+                "Đây là bằng chứng ghép nguồn, không phải duyệt nội dung."
             )
             m2_metrics = st.columns(3)
             m2_metrics[0].metric("Cần giáo viên xem", m2_review_queue["counts"].get("REVIEW_REQUIRED", 0))
@@ -4862,7 +4883,7 @@ def main():
             if filtered_m2_rows:
                 st.dataframe(
                     [{
-                        "Ưu tiên": " / ".join(str(value) for value in row["priority"][:2]),
+                        "Ưu tiên": row["priority"],
                         "Kết quả": row["outcome"],
                         "Lý do": ", ".join(row["reason_codes"]),
                         "Bài": row["lesson"],
