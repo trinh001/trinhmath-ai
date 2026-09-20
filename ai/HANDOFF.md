@@ -79,4 +79,11 @@ Do not allow any AI to auto-approve or auto-release content.
 
 ## NEXT AFTER CURRENT TASK
 
-Use the real post-provenance M2 aggregate and the resulting M3 foundation to choose one next product package. The current measured bottleneck is teacher source/formula review; begin with a small, teacher-reviewed set of explicit `APPROVED_MANUAL` matches before any exam-generation work.
+Current bottleneck is not code generation; it is trusted source review. The next package is M3-S1 Teacher Review Pilot:
+- deterministic local shortlist of the safest 20–50 REVIEW_REQUIRED rows;
+- fast teacher review UI with audit trail;
+- explicit APPROVED_MANUAL / REVIEW_REQUIRED / REJECTED decisions;
+- explicit separate promotion into the versioned trusted bank;
+- no auto-approval and no student release.
+
+Only after a small trusted seed set exists should the roadmap move to teacher exam generation and Word/PDF export.
