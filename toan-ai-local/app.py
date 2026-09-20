@@ -4863,8 +4863,8 @@ def main():
                         "source_file": selected_m2_row["source_file"],
                         "source_name": selected_m2_row["source_name"],
                         "question_number": selected_m2_row["question_number"],
-                        "review_state": selected_m2_row["review_state"],
-                        "review_note": selected_m2_row["review_state_note"],
+                        "resolved": selected_m2_row["resolved"],
+                        "review_note": selected_m2_row["teacher_review_decision"],
                     })
                 with evidence_column:
                     st.json(selected_m2_row["evidence"])
