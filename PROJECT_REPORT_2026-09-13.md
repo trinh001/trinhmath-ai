@@ -152,3 +152,8 @@ Kết quả self-check gần nhất: `OK: candidates=4843, ready_multiple_choice
 - Pilot policy mặc định OFF với kill switch ON. Thiếu config, feature/provider OFF, task/item/payload/token budget vượt giới hạn, secret-like content, route sai hoặc response hỏng đều fail closed trước/sau transport theo đúng scope.
 - Không gọi API, không đọc key thật, không dùng data riêng, không sửa pipeline content hay database. Full pytest đạt **72**, self-check staging và converter checks PASS.
 - Sau PR/CI xanh và branch sạch, bước tiếp theo cần explicit data scope/budget rồi mới xin `DEEPSEEK_API_KEY` cho request thật đầu tiên.
+
+## 13. M3-S0 pending provenance bridge — 21/09/2026
+
+- Bổ sung bridge chỉ-đọc cho provenance có khóa `source_file + question_number` duy nhất. Bridge mang trạng thái chờ giáo viên xác nhận, không được đánh dấu trusted và không đổi approval/release.
+- Lượt đo local vẫn giữ toàn bộ 4.843 candidate ở `REVIEW_REQUIRED`; không có dữ liệu nguồn, OCR, database hay thông tin học sinh được thay đổi hay đưa ra ngoài.

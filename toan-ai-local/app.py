@@ -37,6 +37,7 @@ import importlib
 import local_review_workflow
 import source_review
 import candidate_review_queue
+import teacher_review_pilot
 
 # Streamlit giữ module giữa các lần rerun. Nạp lại rõ ràng để thay đổi của hàng
 # kiểm duyệt nguồn được phản ánh cùng lần chạy app, thay vì giữ API cũ trong
@@ -44,6 +45,7 @@ import candidate_review_queue
 local_review_workflow = importlib.reload(local_review_workflow)
 source_review = importlib.reload(source_review)
 candidate_review_queue = importlib.reload(candidate_review_queue)
+teacher_review_pilot = importlib.reload(teacher_review_pilot)
 build_local_review_queue = source_review.build_local_review_queue
 build_local_source_batches = source_review.build_local_source_batches
 build_source_review_snapshot = source_review.build_source_review_snapshot
@@ -4941,6 +4943,33 @@ def main():
                                 st.rerun()
                 else:
                     st.info("Không có thao tác duyệt/phát hành tại hàng M2. Chỉ nháp parser cục bộ mới có thể được gắn cờ ở đây.")
+                st.divider()
+                st.subheader("M3-S1 — Trusted seed review (local only)")
+                records = teacher_review_pilot.load_records()
+                shortlist = teacher_review_pilot.build_shortlist(m2_review_queue["rows"], records, 50)
+                st.caption(f"Shortlist deterministic: {len(shortlist)} candidate; chỉ quyết định thủ công, không tự duyệt/phát hành.")
+                if shortlist:
+                    st.dataframe([
+                        {"Candidate": row["candidate_id"], "Nguồn": row["source_name"], "Câu": row["question_number"], "Match": row["source_match_score"], "Confidence": row["confidence"]}
+                        for row in shortlist
+                    ], use_container_width=True, hide_index=True)
+                if selected_m2_row in shortlist:
+                    current = records.get(selected_m2_row["candidate_id"], {})
+                    decision = st.selectbox("Quyết định giáo viên", [teacher_review_pilot.REVIEW_REQUIRED, teacher_review_pilot.APPROVED_MANUAL, teacher_review_pilot.REJECTED], index=[teacher_review_pilot.REVIEW_REQUIRED, teacher_review_pilot.APPROVED_MANUAL, teacher_review_pilot.REJECTED].index(current.get("decision", teacher_review_pilot.REVIEW_REQUIRED)), key=f"m3_decision_{selected_m2_row['candidate_id']}")
+                    reason = st.text_area("Bằng chứng/ghi chú giáo viên", value=current.get("reason", ""), key=f"m3_reason_{selected_m2_row['candidate_id']}")
+                    if st.button("Lưu quyết định M3-S1", key=f"m3_save_{selected_m2_row['candidate_id']}"):
+                        try:
+                            teacher_review_pilot.save_decision(selected_m2_row["candidate_id"], decision, st.session_state.user.get("display_name", "teacher"), reason, selected_m2_row)
+                            st.success("Đã lưu audit local; không có approval/release nào được thực hiện.")
+                            st.rerun()
+                        except ValueError as error:
+                            st.warning(str(error))
+                    if current.get("decision") == teacher_review_pilot.APPROVED_MANUAL and st.button("Promote to Trusted Bank", key=f"m3_promote_{selected_m2_row['candidate_id']}"):
+                        candidate = next((item for item in candidates if item.get("candidate_id") == selected_m2_row["candidate_id"]), {})
+                        ok, message = teacher_review_pilot.promote(candidate, selected_m2_row, current)
+                        (st.success if ok else st.warning)(message)
+                else:
+                    st.info("Candidate này không đạt gate shortlist M3-S1; vẫn giữ ở hàng đối chiếu M2.")
             if drafts:
                 st.divider()
                 st.subheader("Duyệt bản nháp AI")
