@@ -230,7 +230,11 @@ def source_match_evidence(candidate: Mapping[str, Any], sources: object) -> dict
         [source for source in candidate_records if isinstance(source, Mapping)]
         if isinstance(candidate_records, list) else []
     )
-    records_to_compare = linked_records or same_file_records or records
+    trusted_linked_records = [
+        source for source in linked_records
+        if bool(source.get("provenance_trusted", True))
+    ]
+    records_to_compare = trusted_linked_records or linked_records or same_file_records or records
     matches = [_match_score(candidate, source, index) for index, source in enumerate(records_to_compare, start=1)]
     matches.sort(key=lambda item: (-float(item["score"]), str(item["source_id"])))
     top = matches[0] if matches else None
@@ -260,6 +264,7 @@ def source_match_evidence(candidate: Mapping[str, Any], sources: object) -> dict
         "catalog_size": len(records),
         "compared_source_count": len(matches),
         "candidate_linked_source_count": len(linked_records),
+        "trusted_candidate_linked_source_count": len(trusted_linked_records),
         "top_match": top,
         "plausible_source_ids": [item["source_id"] for item in plausible],
     }
