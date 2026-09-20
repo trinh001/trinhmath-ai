@@ -7,6 +7,10 @@ __pycache__/
 .mpl-cache/
 .pip-cache/
 .packages/
+.dev-fallback/
+.dev-fallback-venv/
+.dev-fallback-tools/
+.dev-fallback-bin/
 
 # OCR runtime, staged files, databases and logs
 **/data/
