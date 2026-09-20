@@ -4,21 +4,20 @@
 
 ## LAST COMPLETED
 
-M2-S1 Candidate Classification Pipeline is implemented as a deterministic,
-read-only local slice.  It produces exactly `MATCHED`, `REVIEW_REQUIRED`, or
-`INVALID`; it never changes approval or release state.
+M2 Integration Pack (S2 + S3) is implemented on a dedicated branch. It adds a
+tested adapter for the local schema, read-only aggregate measurement, a
+deterministic review queue and teacher-screen integration. The queue reuses
+`source_review.py` and `local_review_workflow.py`; its only action is the
+existing reversible flag on eligible local drafts.
 
 ## CURRENT STATE
 
-- `toan-ai-local/candidate_classification.py` combines explicit source-match
-  evidence, structural/source-quality checks, duplicate detection, optional
-  structured Math Verifier results, confidence scoring and clear reason codes.
-- `run_candidate_classification_report.py` reads only explicitly supplied JSON
-  candidate/source metadata and creates a derived report. It does not discover
-  a database, OCR/source files, student data, or call any API.
-- Ambiguous source/image/formula/math/duplicate cases fail closed to
-  `REVIEW_REQUIRED`; missing essential structure, unrecoverable parse and
-  mathematical contradiction are `INVALID`.
+- Real local measurement processed 4,843 candidates; every row was classified
+  and no raw report was committed. See `ai/M2_INTEGRATION_REPORT.md` for safe
+  aggregate counts only.
+- The source catalog has file metadata but lacks question-level comparison
+  evidence, so all rows correctly remain `REVIEW_REQUIRED`; no candidate was
+  auto-approved or released.
 
 ## ACTIVE BRANCH
 
@@ -27,25 +26,22 @@ created from `origin/main` on 20/09/2026. Do not merge `main` automatically.
 
 ## TEST STATUS
 
-M2 targeted tests and the full `toan-ai-local` suite pass locally (87 tests).
-The synthetic CLI report classifies all 5 fixture rows with no unclassified
-result. Empty injected environments remain isolated from system DeepSeek
-variables.
+Targeted adapter/queue/source-review tests, full `toan-ai-local` pytest,
+syntax/import, diff check and secret scan are required before review. The real
+measurement reports zero unclassified rows.
 
 ## KNOWN RISKS
 
 - Thresholds are deterministic policy defaults, not teacher approval.
-- A real local batch must be supplied explicitly and its report reviewed; no
-  classification is an approval/release decision.
+- File-level catalog metadata cannot establish question-level provenance.
 - Image/formula ambiguity and unsupported Math verification remain teacher work.
 
 ## BLOCKERS
 
-None for code verification. A real candidate/source batch is deliberately out
-of scope until a user selects it for read-only local analysis.
+None for code verification. The next milestone needs curated question-level
+source evidence and teacher review, not a weaker matching threshold.
 
 ## NEXT EXACT ACTION
 
-Review this branch/PR, then choose a separately authorized, read-only local
-batch for measurement. Do not auto-approve, release, merge `main`, or send data
-to a provider.
+Review this branch/PR. Do not auto-approve, release, merge `main`, rewrite
+source/OCR, or send local data to a provider.

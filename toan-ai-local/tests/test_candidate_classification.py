@@ -53,6 +53,28 @@ def test_multiple_plausible_source_matches_require_teacher_review():
     assert row["evidence"]["source_match"]["status"] == "AMBIGUOUS"
 
 
+def test_exact_source_file_limits_comparison_without_hiding_same_file_ambiguity():
+    report = classify_candidates(
+        [candidate()],
+        [source(source_record_id="same-a"), source(source_record_id="same-b"), source(source_record_id="other", source_file="other.docx")],
+    )
+
+    match = report["classifications"][0]["evidence"]["source_match"]
+    assert match["catalog_size"] == 3
+    assert match["compared_source_count"] == 2
+    assert match["status"] == "AMBIGUOUS"
+
+
+def test_prebuilt_source_file_index_preserves_matching_outcome():
+    matching_source = source()
+    report = classify_candidates(
+        [candidate()],
+        {"sources": [matching_source], "by_source_file": {"sample docx": [matching_source]}},
+    )
+
+    assert report["classifications"][0]["outcome"] == MATCHED
+
+
 def test_exact_duplicate_candidates_are_reviewed_and_input_is_not_changed():
     candidates = [candidate(candidate_id="one"), candidate(candidate_id="two")]
     original = deepcopy(candidates)

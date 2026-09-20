@@ -126,3 +126,9 @@ _Cập nhật: 13/09/2026_
 - Source match dùng trọng số công khai, có kiểm thử cho source trùng/không rõ, xung đột đáp án, duplicate, dữ kiện thiếu, hình/công thức cần đối chiếu và Math Verifier chưa kết luận. Mọi mơ hồ đi về `REVIEW_REQUIRED`; lỗi cấu trúc thiết yếu/parse không khôi phục/mâu thuẫn Toán là `INVALID`.
 - Report chỉ nhận JSON candidate/source metadata được chỉ định rõ và fixture test hoàn toàn synthetic; không đọc DB, OCR/source gốc hay dữ liệu học sinh, không ghi đè input và không gọi API. Full suite hiện đạt **87 pytest PASS**.
 - Đồng thời sửa guardrail injection môi trường: `{}` trong test/runner nay là môi trường rỗng thực sự, không kế thừa key/feature flag từ PowerShell đang chạy.
+
+## Nhật ký M2 Integration Pack — 20/09/2026
+
+- Thêm adapter schema local, aggregate runner và hàng kiểm duyệt M2 trên đúng màn kiểm duyệt hiện có. Lô local 4.843 candidate chỉ được đọc; mọi candidate nhận outcome và không có candidate nào được duyệt/phát hành tự động.
+- Catalog nguồn hiện chỉ có metadata cấp tệp nên 4.843 candidate được giữ ở `REVIEW_REQUIRED` thay vì suy diễn khớp câu. Báo cáo Git chỉ lưu aggregate không chứa nội dung nguồn/OCR/dữ liệu học sinh.
+- Hàng M2 tái dùng source snapshot và workflow gắn cờ nháp cục bộ; giáo viên có thể lọc outcome/lý do/nguồn/bài, xem provenance/evidence và chỉ gắn cờ có thể khôi phục.
