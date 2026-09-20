@@ -25,7 +25,9 @@ from pathlib import Path
 from typing import Iterable
 
 
-DEFAULT_DEEPSEEK_MODEL = "deepseek/deepseek-chat"
+DEEPSEEK_FLASH_MODEL = "openai/deepseek-v4-flash"
+DEEPSEEK_PRO_MODEL = "openai/deepseek-v4-pro"
+DEEPSEEK_API_BASE = "https://api.deepseek.com"
 STATE_DIR = ".dev-fallback"
 STATE_FILE = "state.json"
 LOCK_FILE = "running.lock"
@@ -63,6 +65,13 @@ PRIVATE_PATH_PATTERNS = (
 )
 
 
+@dataclass(frozen=True)
+class DeepSeekDevRoute:
+    model: str
+    reasoning_effort: str
+    reason_code: str
+
+
 @dataclass
 class WorkerOutcome:
     worker: str
@@ -80,6 +89,9 @@ class DevState:
     active_worker: str
     codex_returncode: int | None = None
     fallback_reason: str = ""
+    fallback_model: str = ""
+    fallback_reasoning_effort: str = ""
+    fallback_route_reason: str = ""
     aider_returncode: int | None = None
     tests_passed: bool | None = None
     commit_sha: str = ""
@@ -97,6 +109,42 @@ def task_digest(text: str) -> str:
 def quota_exhausted(output: str) -> bool:
     lowered = output.lower()
     return any(re.search(pattern, lowered, flags=re.I | re.S) for pattern in QUOTA_PATTERNS)
+
+
+def choose_deepseek_route(task: str, paths: Iterable[str] = ()) -> DeepSeekDevRoute:
+    """Choose a cost/quality DeepSeek fallback route deterministically."""
+    forced = os.environ.get("TRINHMATH_DEEPSEEK_DEV_MODE", "auto").strip().lower()
+    if forced in {"flash", "fast"}:
+        return DeepSeekDevRoute(DEEPSEEK_FLASH_MODEL, "high", "FORCED_FLASH")
+    if forced in {"pro", "expert"}:
+        return DeepSeekDevRoute(DEEPSEEK_PRO_MODEL, "max", "FORCED_PRO")
+
+    text = task.lower()
+    path_blob = " ".join(str(path).replace("\\", "/").lower() for path in paths)
+
+    complex_markers = (
+        "architecture", "kiến trúc", "security", "bảo mật", "migration",
+        "schema", "database", "sqlite", "concurrency", "race condition",
+        "cross-module", "multi-module", "math verifier", "parser", "matching",
+        "provenance", "data integrity", "release gate", "approval gate",
+        "root cause", "refactor lõi", "core refactor",
+    )
+    core_paths = (
+        "candidate_classification.py", "math_verifier.py", "source_analyzer.py",
+        "matching.py", "storage.py", "variant_validation.py", "ai_provider.py",
+        "model_router.py",
+    )
+    if any(marker in text for marker in complex_markers) or any(name in path_blob for name in core_paths):
+        return DeepSeekDevRoute(DEEPSEEK_PRO_MODEL, "max", "COMPLEX_OR_CORE_CHANGE")
+
+    simple_markers = (
+        "documentation", "docs", "readme", "typo", "format", "rename",
+        "fixture", "test only", "tests only", "ui text", "copywriting",
+    )
+    if any(marker in text for marker in simple_markers):
+        return DeepSeekDevRoute(DEEPSEEK_FLASH_MODEL, "high", "SIMPLE_LOW_COST")
+
+    return DeepSeekDevRoute(DEEPSEEK_FLASH_MODEL, "high", "DAILY_AGENT_DEFAULT")
 
 
 def is_private_path(path: str) -> bool:
@@ -262,7 +310,7 @@ def run_codex(repo: Path, task: str) -> WorkerOutcome:
     return WorkerOutcome("codex", code, quota_exhausted(output), output)
 
 
-def run_aider(repo: Path, task: str, fallback_reason: str) -> WorkerOutcome:
+def run_aider(repo: Path, task: str, fallback_reason: str, route: DeepSeekDevRoute) -> WorkerOutcome:
     aider = resolve_aider(repo)
     if not aider:
         return WorkerOutcome("deepseek-aider", 127, False, "Aider is not installed.")
@@ -274,9 +322,14 @@ def run_aider(repo: Path, task: str, fallback_reason: str) -> WorkerOutcome:
     prompt_path = runtime_dir / "deepseek_continuation.md"
     prompt_path.write_text(continuation_prompt(task, fallback_reason), encoding="utf-8")
 
-    model = os.environ.get("TRINHMATH_DEEPSEEK_DEV_MODEL", DEFAULT_DEEPSEEK_MODEL).strip() or DEFAULT_DEEPSEEK_MODEL
+    model_override = os.environ.get("TRINHMATH_DEEPSEEK_DEV_MODEL", "").strip()
+    model = model_override or route.model
+    environment = dict(os.environ)
+    environment["OPENAI_API_BASE"] = DEEPSEEK_API_BASE
+    environment["OPENAI_API_KEY"] = environment["DEEPSEEK_API_KEY"]
     command = split_command(aider) + [
         "--model", model,
+        "--reasoning-effort", route.reasoning_effort,
         "--message-file", str(prompt_path),
         "--yes-always",
         "--no-auto-commits",
@@ -285,7 +338,7 @@ def run_aider(repo: Path, task: str, fallback_reason: str) -> WorkerOutcome:
         "--no-show-release-notes",
         "--aiderignore", str(repo / ".aiderignore"),
     ]
-    code, output = run_streaming(command, cwd=repo, env=dict(os.environ))
+    code, output = run_streaming(command, cwd=repo, env=environment)
     return WorkerOutcome("deepseek-aider", code, False, output)
 
 
@@ -394,7 +447,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--task-file", type=Path, default=Path("ai/DEV_TASK.md"))
     parser.add_argument("--repo", type=Path, default=Path("."))
     parser.add_argument("--branch-prefix", default="dev/auto")
-    parser.add_argument("--no-push", action="store_true")
+    parser.add_argument(
+        "--commit",
+        action="store_true",
+        help="Explicitly allow a local git commit after validation. Default: leave changes uncommitted.",
+    )
+    parser.add_argument(
+        "--push",
+        action="store_true",
+        help="Explicitly allow push after a successful local commit. Requires --commit.",
+    )
     parser.add_argument(
         "--fallback-on-codex-unavailable",
         action="store_true",
@@ -438,11 +500,18 @@ def main() -> int:
             print("[dev-fallback] Codex completed without quota failure.")
         elif needs_fallback:
             reason = "CODEX_QUOTA_EXHAUSTED" if codex.quota_detected else "CODEX_UNAVAILABLE"
+            route = choose_deepseek_route(task, changed_paths(repo))
             state.fallback_reason = reason
+            state.fallback_model = route.model
+            state.fallback_reasoning_effort = route.reasoning_effort
+            state.fallback_route_reason = route.reason_code
             state.active_worker = "deepseek-aider"
             write_state(repo, state)
-            print(f"[dev-fallback] {reason}; switching outside Codex to DeepSeek/Aider.")
-            fallback = run_aider(repo, task, reason)
+            print(
+                f"[dev-fallback] {reason}; switching outside Codex to DeepSeek/Aider "
+                f"model={route.model} effort={route.reasoning_effort} route={route.reason_code}."
+            )
+            fallback = run_aider(repo, task, reason, route)
             state.aider_returncode = fallback.returncode
             if fallback.returncode:
                 state.status = "FAILED"
@@ -465,9 +534,16 @@ def main() -> int:
             write_state(repo, state)
             return 2
 
-        sha, push_status = commit_and_push(repo, push=not args.no_push)
-        state.commit_sha = sha
-        state.push_status = push_status
+        if args.push and not args.commit:
+            raise RuntimeError("--push requires explicit --commit")
+        if args.commit:
+            sha, push_status = commit_and_push(repo, push=args.push)
+            state.commit_sha = sha
+            state.push_status = push_status
+        else:
+            state.commit_sha = git(repo, "rev-parse", "HEAD")
+            state.push_status = "not-requested"
+            print("[dev-fallback] validation passed; safe default leaves changes uncommitted/unpushed.")
         state.status = "COMPLETED"
         state.active_worker = ""
         write_state(repo, state)
