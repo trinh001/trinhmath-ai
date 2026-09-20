@@ -76,9 +76,35 @@ with TemporaryDirectory() as temporary:
     row = store.get_match_review_for_promotion(parser_draft_id)
     assert row["match_status"] == "APPROVED_MANUAL"
 
+    with store.session() as connection:
+        version_one = connection.execute(
+            "SELECT source_record_id, source_match_evidence_json, solution FROM trusted_question_versions WHERE question_id=? AND version=1",
+            ("candidate-1",),
+        ).fetchone()
+    assert version_one["source_record_id"].startswith("converter:")
+    assert '"source_hash":' in version_one["source_match_evidence_json"]
+    assert version_one["solution"] == "2+2=4"
+
+    # Editing already-approved content creates a new immutable version.
+    with store.session() as connection:
+        connection.execute(
+            "UPDATE parsed_questions SET solution=? WHERE id=?",
+            ("2+2=4.", parser_draft_id),
+        )
+    second = promote_approved_match_to_trusted_bank(
+        store,
+        parser_draft_id,
+        teacher_review_evidence={"manual": True, "notes": "reviewed edit"},
+        reviewer="TEST_TEACHER",
+        reviewed_at="2026-01-01 00:01:00",
+        curriculum_metadata={"grade": "10"},
+        math_verification_evidence={"status": "VERIFIED"},
+    )
+    assert second["version"] == 2
+
     summary = store.trusted_question_summary()
     assert summary["questions"]["APPROVED"] == 1
-    assert summary["versions"] == 1
+    assert summary["versions"] == 2
 
     # Promotion must fail without explicit teacher review evidence.
     try:
