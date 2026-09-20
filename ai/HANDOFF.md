@@ -40,12 +40,14 @@ That result reflected file-level source metadata only and must not be treated as
 For long coding packages requiring automatic quota fallback:
 
 1. put the complete task in `ai/DEV_TASK.md`;
-2. start with `RUN_DEV_TASK_AUTO.bat`;
-3. Codex is primary;
-4. if Codex stops on quota/rate-limit, the external orchestrator switches to DeepSeek/Aider on the same git working tree;
-5. DeepSeek route is selected by task complexity;
-6. default completion is code + tests + validated diff, with no automatic commit/push;
-7. the configured DeepSeek/Aider fallback is pre-authorized for public/tracked repository code and ordinary usage on the existing DeepSeek account; private/gitignored runtime data remains forbidden.
+2. prefer `START_DEV_TASK_AUTO.bat` for one-click Windows launch. It checks for a clean tree, syncs `main`, clears only a stale lock whose PID is no longer running, then starts `RUN_DEV_TASK_AUTO.bat` in a separate window;
+3. do not launch `RUN_DEV_TASK_AUTO.bat` from inside an interactive Codex session, because the outer Codex can waste quota polling the inner Codex process;
+4. direct `RUN_DEV_TASK_AUTO.bat` remains available for a normal terminal/external shell;
+5. Codex is primary;
+6. if Codex stops on quota/rate-limit, the external orchestrator switches to DeepSeek/Aider on the same git working tree;
+7. DeepSeek route is selected by task complexity;
+8. default completion is code + tests + validated diff, with no automatic commit/push;
+9. the configured DeepSeek/Aider fallback is pre-authorized for public/tracked repository code and ordinary usage on the existing DeepSeek account; private/gitignored runtime data remains forbidden.
 
 Private/local runtime files remain excluded from the DeepSeek fallback and Git.
 
