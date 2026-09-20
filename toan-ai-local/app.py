@@ -4804,8 +4804,24 @@ def main():
             m2_inputs = adapt_real_m2_inputs(candidates, get_sources())
             m2_classification = classify_candidates(m2_inputs["candidates"], m2_inputs["source_match_input"])
             drafts = get_question_drafts()
+            manual_formula_overrides = {
+                str(candidate_id): get_manual_formula_overrides(str(candidate_id))
+                for candidate_id, record in drafts.items()
+                if isinstance(record, dict) and record.get("provenance") in LOCAL_DRAFT_PROVENANCE
+            }
+            local_review_queue = build_local_review_queue(
+                drafts,
+                candidates,
+                get_image_analyses(),
+                manual_formula_overrides,
+            )
             m2_review_queue = build_candidate_review_queue(
-                m2_classification, candidates, get_image_analyses(), drafts
+                m2_classification,
+                candidates,
+                get_image_analyses(),
+                drafts,
+                manual_formula_overrides,
+                local_review_queue=local_review_queue,
             )
             st.divider()
             st.subheader("Hàng kiểm duyệt M2 — chỉ đối chiếu")
@@ -4829,12 +4845,18 @@ def main():
             with filter_right:
                 selected_m2_lesson = st.selectbox("Bài học", [""] + all_lessons, format_func=lambda value: value or "Tất cả", key="m2_lesson_filter")
             selected_m2_source = st.text_input("Lọc nguồn", placeholder="Tên hoặc tệp nguồn", key="m2_source_filter")
+            unresolved_m2_only = st.checkbox(
+                "Chỉ hiện candidate chưa được giáo viên xử lý",
+                value=True,
+                key="m2_unresolved_only",
+            )
             filtered_m2_rows = filter_candidate_review_queue(
                 m2_review_queue,
                 outcomes=selected_m2_outcomes,
                 reasons=selected_m2_reasons,
                 source_query=selected_m2_source,
                 lesson=selected_m2_lesson,
+                unresolved_only=unresolved_m2_only,
             )
             st.caption(f"Hiển thị {len(filtered_m2_rows)}/{len(m2_review_queue['rows'])} candidate theo bộ lọc.")
             if filtered_m2_rows:
@@ -4863,6 +4885,7 @@ def main():
                         "source_file": selected_m2_row["source_file"],
                         "source_name": selected_m2_row["source_name"],
                         "question_number": selected_m2_row["question_number"],
+                        "review_state": selected_m2_row["review_state"],
                         "resolved": selected_m2_row["resolved"],
                         "review_note": selected_m2_row["teacher_review_decision"],
                     })
@@ -4874,7 +4897,16 @@ def main():
                 if visuals:
                     with st.expander("Ngữ cảnh ảnh/công thức nguồn", expanded=False):
                         st.json(visuals)
-                if selected_m2_row["can_flag_local_draft"]:
+                if selected_m2_row.get("can_restore_local_draft"):
+                    if st.button(
+                        "Đưa nháp này trở lại hàng đối chiếu",
+                        key=f"m2_restore_{selected_m2_row['candidate_id']}",
+                    ):
+                        ok, message = restore_local_draft_to_review_queue(selected_m2_row["candidate_id"])
+                        (st.success if ok else st.warning)(message)
+                        if ok:
+                            st.rerun()
+                elif selected_m2_row["can_flag_local_draft"]:
                     with st.expander("Gắn cờ nháp cục bộ — không duyệt", expanded=False):
                         category = st.selectbox(
                             "Lý do gắn cờ", list(DECISION_LABELS),
@@ -4891,17 +4923,6 @@ def main():
             if drafts:
                 st.divider()
                 st.subheader("Duyệt bản nháp AI")
-                manual_formula_overrides = {
-                    str(candidate_id): get_manual_formula_overrides(str(candidate_id))
-                    for candidate_id, record in drafts.items()
-                    if isinstance(record, dict) and record.get("provenance") in LOCAL_DRAFT_PROVENANCE
-                }
-                local_review_queue = build_local_review_queue(
-                    drafts,
-                    candidates,
-                    get_image_analyses(),
-                    manual_formula_overrides,
-                )
                 local_counts = local_review_queue["counts"]
                 local_total = sum(local_counts.values())
                 if local_total:
