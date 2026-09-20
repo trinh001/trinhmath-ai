@@ -54,9 +54,9 @@ def enabled_config(**overrides):
     return DeepSeekConfig(**values)
 
 
-def success_response(content='{"accepted": true}'):
+def success_response(content='{"accepted": true}', finish_reason="stop"):
     return TransportResponse(200, {
-        "choices": [{"message": {"content": content}}],
+        "choices": [{"message": {"content": content}, "finish_reason": finish_reason}],
         "usage": {"prompt_tokens": 12, "completion_tokens": 5},
     })
 
@@ -190,6 +190,17 @@ def test_output_token_cap_and_truncated_json_fail_closed():
     assert (over_cap.status, over_cap.error_category) == (RESULT_REJECTED, ERROR_REQUEST_NOT_ALLOWED)
     assert (truncated.status, truncated.error_category) == (RESULT_REJECTED, ERROR_MALFORMED_RESPONSE)
     assert len(transport.calls) == 1
+
+
+def test_finish_reason_length_rejects_even_valid_json():
+    transport = FakeDeepSeekTransport([success_response('{"accepted": true}', finish_reason="length")])
+    result = DeepSeekProvider(
+        config=enabled_config(),
+        environment={"DEEPSEEK_API_KEY": "fixture-key"},
+        transport=transport,
+    ).run(request())
+    assert (result.status, result.error_category) == (RESULT_REJECTED, ERROR_MALFORMED_RESPONSE)
+    assert not response_is_usable(result)
 
 
 def test_unapproved_or_sensitive_requests_do_not_reach_transport():
