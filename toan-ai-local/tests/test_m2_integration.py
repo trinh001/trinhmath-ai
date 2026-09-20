@@ -195,3 +195,24 @@ def test_measurement_reads_optional_question_provenance(tmp_path):
 
     assert measured["schema_summary"]["trusted_question_provenance_count"] == 1
     assert measured["metrics"]["outcome_counts"]["MATCHED"] == 1
+
+
+def test_trusted_candidate_link_ignores_untrusted_link_noise():
+    adapted = adapt_real_m2_inputs(
+        [raw_candidate()],
+        [raw_source()],
+        [
+            trusted_question_provenance(source_record_id="converter:trusted"),
+            trusted_question_provenance(
+                source_record_id="converter:untrusted",
+                question_text="Nội dung OCR khác hẳn.",
+                provenance_trusted=False,
+            ),
+        ],
+    )
+    report = classify_candidates(adapted["candidates"], adapted["source_match_input"])
+    match = report["classifications"][0]["evidence"]["source_match"]
+
+    assert match["candidate_linked_source_count"] == 2
+    assert match["trusted_candidate_linked_source_count"] == 1
+    assert report["classifications"][0]["outcome"] == "MATCHED"
