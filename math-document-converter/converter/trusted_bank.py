@@ -15,6 +15,17 @@ from typing import Any, Mapping
 
 from .storage import ConverterStore
 
+TRUSTED_STATUS_DRAFT = "DRAFT"
+TRUSTED_STATUS_REVIEW_REQUIRED = "REVIEW_REQUIRED"
+TRUSTED_STATUS_APPROVED = "APPROVED"
+TRUSTED_STATUS_RETIRED = "RETIRED"
+TRUSTED_STATUSES = frozenset({
+    TRUSTED_STATUS_DRAFT,
+    TRUSTED_STATUS_REVIEW_REQUIRED,
+    TRUSTED_STATUS_APPROVED,
+    TRUSTED_STATUS_RETIRED,
+})
+
 
 def _text(value: object) -> str:
     return str(value or "").strip()
@@ -64,7 +75,7 @@ def promote_approved_match_to_trusted_bank(
     *,
     curriculum_metadata: Mapping[str, Any] | None = None,
     math_verification_evidence: Mapping[str, Any] | None = None,
-    status: str = "APPROVED",
+    status: str = TRUSTED_STATUS_APPROVED,
 ) -> dict[str, Any]:
     """Create or extend an immutable trusted-question entry from a reviewed match.
 
@@ -76,7 +87,7 @@ def promote_approved_match_to_trusted_bank(
     - The creation is versioned; no existing version is overwritten.
     """
 
-    if status != "APPROVED":
+    if status != TRUSTED_STATUS_APPROVED:
         raise ValueError("promotion status must be APPROVED")
     if not reviewer.strip():
         raise ValueError("reviewer is required for teacher approval evidence")
@@ -99,6 +110,9 @@ def promote_approved_match_to_trusted_bank(
     source_path = _text(row.get("source_path"))
     if not source_path:
         raise ValueError("source provenance is unresolved; refusing promotion")
+    source_hash = _text(row.get("source_hash"))
+    if not source_hash:
+        raise ValueError("source hash is missing; refusing promotion")
     source_file = Path(source_path).name
     source_name = _text(source_file)
     source_page = row.get("first_page_number")
@@ -142,7 +156,12 @@ def promote_approved_match_to_trusted_bank(
     cognitive_level = _text(meta.get("cognitive_level"))
     difficulty = _text(meta.get("difficulty"))
 
+    stable_locator = question_number if question_number is not None else parser_draft_id
+    source_record_id = f"converter:{source_hash}:{source_page or 0}:{stable_locator}"
+
     source_match_evidence = {
+        "source_hash": source_hash,
+        "source_record_id": source_record_id,
         "match_score": row.get("match_score") or 0.0,
         "match_duplicate_score": row.get("duplicate_score") or 0.0,
         "score_breakdown": _json(row.get("score_breakdown_json"), {}),
@@ -203,7 +222,7 @@ def promote_approved_match_to_trusted_bank(
                 candidate_id,
                 version,
                 candidate_id,
-                f"converter:{parser_draft_id}",
+                source_record_id,
                 source_file,
                 source_name,
                 source_page,
