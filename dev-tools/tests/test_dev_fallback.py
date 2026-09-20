@@ -47,3 +47,33 @@ def test_codex_command_uses_noninteractive_workspace_write(monkeypatch):
     assert "workspace-write" in command
     assert "--ephemeral" in command
     assert command[-1] == "Do work"
+
+
+def test_deepseek_auto_route_uses_flash_for_simple_and_pro_for_core_work(monkeypatch):
+    monkeypatch.delenv("TRINHMATH_DEEPSEEK_DEV_MODE", raising=False)
+
+    simple = dev_fallback.choose_deepseek_route("Update README wording and typo fixes.", [])
+    core = dev_fallback.choose_deepseek_route(
+        "Fix provenance matching and parser data integrity.",
+        ["toan-ai-local/candidate_classification.py"],
+    )
+
+    assert simple.model == dev_fallback.DEEPSEEK_FLASH_MODEL
+    assert simple.reason_code == "SIMPLE_LOW_COST"
+    assert core.model == dev_fallback.DEEPSEEK_PRO_MODEL
+    assert core.reasoning_effort == "max"
+    assert core.reason_code == "COMPLEX_OR_CORE_CHANGE"
+
+
+def test_deepseek_route_can_be_forced(monkeypatch):
+    monkeypatch.setenv("TRINHMATH_DEEPSEEK_DEV_MODE", "pro")
+    route = dev_fallback.choose_deepseek_route("docs only", [])
+    assert route.model == dev_fallback.DEEPSEEK_PRO_MODEL
+    assert route.reason_code == "FORCED_PRO"
+
+
+def test_safe_default_requires_explicit_commit_and_push(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["dev_fallback.py"])
+    args = dev_fallback.parse_args()
+    assert args.commit is False
+    assert args.push is False
