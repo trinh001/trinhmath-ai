@@ -36,8 +36,6 @@ toan-ai-local/source_catalog.json
 toan-ai-local/ai_scan_status.json
 toan-ai-local/draft_batch_status.json
 toan-ai-local/local_ocr_status.json
-toan-ai-local/teacher_review_pilot_records.json
-toan-ai-local/trusted_question_bank.json
 toan-ai-local/TrinhMath_AI_source_for_GitHub_*.zip
 TrinhMath_AI_*.zip
 
