@@ -12,99 +12,102 @@ AUTHORIZATION FOR THIS TASK:
   question-bank JSON, student data, credentials, or secrets to external models;
 - local deterministic scripts may process private runtime data and expose only aggregate/sanitized results.
 
-## TASK — M3-S1 Teacher Review Pilot: create the first trusted seed set
+## TASK — M3-S0 Teacher Confirm for pending provenance bridges
 
-Goal: turn the current 0 trusted provenance state into a small, teacher-reviewed,
-versioned trusted seed set without weakening any safety threshold.
+Goal: let the teacher explicitly confirm or reject pending provenance bridges produced from
+unique `source_file + question_number` evidence, then rerun M2 using only confirmed links
+as trusted provenance. No automatic trust, approval, or release.
 
 ### 0. Startup
 
 - Inspect git branch/status/diff.
 - Read only `AGENTS.md` and `ai/HANDOFF.md` first.
 - Do not reread the whole repository.
-- Preserve all M2/M3 fail-closed rules already merged.
+- Preserve all existing fail-closed M2/M3 behavior.
 
-### 1. Build a local-only review pilot
+### 1. Local confirmation store
 
-Create or improve a teacher review workflow that works only on local data and does not
-send private question content to external services.
+Add a small local-only confirmation store for pending provenance bridges.
 
-The pilot should:
-- rank REVIEW_REQUIRED rows by safest deterministic review priority;
-- prefer rows with strongest source/question evidence first;
-- never mark anything approved automatically;
-- show enough evidence for a teacher to make a source-link decision quickly;
-- support explicit actions:
-  - APPROVED_MANUAL
-  - REVIEW_REQUIRED
+Requirements:
+- gitignored runtime file;
+- immutable/auditable event history;
+- explicit states at minimum:
+  - PENDING_TEACHER_CONFIRMATION
+  - CONFIRMED
   - REJECTED
-- record reviewer, reason, timestamp, previous state, and audit trail;
-- be reversible where existing architecture allows it;
-- clearly separate source-match approval from trusted-bank promotion and student release.
+- record reviewer, reason, timestamp, source_record_id, candidate_id,
+  source_file, page/question number, and previous state;
+- never modify raw OCR/source documents or original Converter provenance export;
+- confirmation records are local runtime data and must never be committed.
 
-### 2. High-confidence review shortlist
+### 2. Teacher-confirm UI
 
-Create a deterministic local shortlist generator for the first seed set.
+In the local review UI, show only pending bridge rows.
 
-Target:
-- 20 to 50 questions maximum for the pilot;
-- only rows with the strongest available evidence;
-- exclude ambiguity, parser validation failure, source-quality hard failure,
-  unresolved image/formula dependency, and contradictory math evidence;
-- do not lower source-match thresholds;
-- do not use an LLM to decide approval.
+For each pending row, show concise evidence:
+- source file/name;
+- page/page range if available;
+- question number;
+- candidate id;
+- parser/source text snippet if already available in safe local structures;
+- match score/breakdown if available;
+- reason the bridge exists: unique source_file + question_number;
+- current confirmation state and audit history.
 
-The shortlist may be exported locally as a gitignored JSON/CSV summary if useful,
-but must not be committed.
+Actions:
+- Confirm provenance link
+- Reject provenance link
+- Return to pending / undo via an explicit audited action if practical
 
-### 3. Review UI efficiency
+Never auto-confirm.
+Never bulk-confirm.
+Never treat confirmation as content approval or student release.
 
-In the local Streamlit review queue, add only concrete usability improvements that reduce
-teacher time, such as:
-- next/previous;
-- keyboard-friendly or single-click decision buttons;
-- filters for evidence/reason;
-- evidence summary;
-- source file/page/question number;
-- parser question text/options/answer/solution;
-- formula/image flags;
-- current match score/breakdown;
-- audit history.
+### 3. Confirmed provenance adapter
 
-Do not expose raw OCR bulk unless explicitly requested in the UI.
+When a teacher confirms a pending bridge:
+- derive a confirmed provenance record locally;
+- preserve original source_record_id lineage;
+- set an explicit provenance kind for teacher-confirmed bridge;
+- only then set provenance_trusted=True for that derived confirmation record;
+- do not rewrite the original Converter export;
+- rejected/pending bridges stay untrusted.
 
-### 4. Controlled promotion to M3 trusted bank
+The classifier may consume confirmed provenance through the existing adapter.
+Do not lower matching thresholds.
 
-After a teacher sets APPROVED_MANUAL:
-- allow an explicit separate "Promote to Trusted Bank" action;
-- run all existing M3 fail-closed gates;
-- create a versioned trusted question;
-- show promotion success/failure reason;
-- never auto-release to students;
-- never bulk-promote without explicit teacher approval evidence.
+### 4. Rerun local M2 measurement
 
-Add a local summary:
-- reviewed_total
-- approved_manual
-- rejected
-- still_review_required
-- promoted_to_trusted
-- promotion_blocked
-- trusted_bank_total
-- trusted_bank_versions
+After implementation, rerun the local-only M2 cycle using the confirmation store.
 
-### 5. Pilot acceptance criteria
+Report aggregate only:
+- candidate_total
+- question_provenance_total
+- pending_bridge_total
+- confirmed_bridge_total
+- rejected_bridge_total
+- trusted_question_provenance_total
+- MATCHED
+- REVIEW_REQUIRED
+- INVALID
+- unclassified
+- top reason codes
 
-Architecture is ready when:
-- the review shortlist is deterministic;
-- no automatic approval exists;
-- every teacher decision is auditable;
-- promotion is explicit and separate from review;
-- trusted question history is versioned;
-- student release remains a separate gate;
-- private runtime data remains gitignored;
-- tests cover review and promotion state transitions;
-- no public/external API receives private question content.
+Do not send private content externally.
+
+### 5. Acceptance criteria
+
+This package is complete when:
+- pending bridges are visible to teacher;
+- confirm/reject actions are explicit and audited;
+- raw Converter provenance remains unchanged;
+- only confirmed bridge records can become trusted;
+- pending/rejected cannot become MATCHED through trust;
+- no auto-approval/release exists;
+- all runtime confirmation data is gitignored;
+- local M2 rerun completes with aggregate metrics;
+- tests cover state transitions and trust gating.
 
 ### 6. Tests
 
@@ -114,15 +117,15 @@ Run:
 - Converter core/parser/matching/review/provenance/trusted-bank tests
 - py_compile changed Python modules
 - `git diff --check`
-- check private/runtime/secret files are not staged/tracked
+- verify no private/runtime/secret path is staged or tracked
 
 Add regression tests for:
-- shortlist exclusion rules
-- APPROVED_MANUAL audit trail
-- rejected/re-review states
-- promotion success
-- promotion fail-closed cases
-- version history remains immutable
+- pending bridge starts untrusted;
+- CONFIRMED bridge becomes trusted only through teacher confirmation store;
+- REJECTED stays untrusted;
+- undo/re-pending stays untrusted;
+- audit trail preserves prior state;
+- M2 does not create MATCHED from unconfirmed bridge.
 
 ### 7. Git workflow
 
@@ -153,20 +156,28 @@ BRANCH:
 PRIMARY WORKER:
 FALLBACK USED:
 
-REVIEW PILOT:
-shortlist_count:
-review_ui_ready:
+TEACHER CONFIRM:
+pending_bridge_total:
+confirmed_bridge_total:
+rejected_bridge_total:
 audit_ready:
-promotion_ready:
+
+M2 AFTER CONFIRM:
+trusted_provenance:
+MATCHED:
+REVIEW_REQUIRED:
+INVALID:
+unclassified:
 
 TESTS:
 
 SAFETY:
+auto_confirmed:
 auto_approved:
 auto_released:
 external_private_data_calls:
 private_files_staged:
 
 NEXT PACKAGE:
-Give exactly one next package. Prefer exam-generation/export only after at least a small
-teacher-approved trusted seed set exists.
+Give exactly one next package. Move to M3-S1 trusted seed review only after teacher-confirmed
+trusted provenance exists.
