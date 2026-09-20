@@ -1,24 +1,32 @@
-# Hàng đợi công việc TrinhMath AI
+# TrinhMath AI — Task queue
 
-_Cập nhật checkpoint: 20/09/2026. Trạng thái Git thật phải lấy bằng Git, không suy ra từ file này._
+_Current source of truth for branch/commit is Git, not this file._
 
-## Đang thực hiện
+## ACTIVE — M2 Data Factory
 
-- Phase 3 pilot prep đã dựng và push trên branch mới từ `origin/main`; local tests, self-check, converter checks, diff/security gate PASS. PR/CI chờ submission GitHub được xác nhận. Provider chưa được tích hợp vào `app.py`, chưa gọi mạng và không có key/API thật.
+1. **M2-S1 Candidate classification pipeline** — source matching, structural validation, duplicate checks, evidence/confidence, `MATCHED | REVIEW_REQUIRED | INVALID`, read-only report.
+2. **M2-S2 Review queue UX** — show source vs parsed candidate, reason/evidence, fast teacher actions; no auto-approval.
+3. **M2-S3 Batch processing/reporting** — process the full candidate set locally, measure reason buckets, identify OCR/parser bottlenecks.
+4. **M2-S4 Math verification expansion** — add deterministic solvers/checkers for high-volume supported problem classes; unsupported cases stay review-required.
 
-## Việc tiếp theo đủ điều kiện (sau checkpoint sạch)
+## NEXT — M3 Trusted Question Bank
 
-1. Review diff/CI của Phase 3. Chỉ sau CI xanh và branch sạch mới dừng tại blocker xin key/data scope/budget cho first real run.
-2. Khi có user approval cho data scope/budget/key, chọn 5–20 task sanitized riêng; không gọi API trước stop condition đó.
-3. Giáo viên đối chiếu draft parser cục bộ với nguồn; công thức/hình chưa rõ vẫn `BLOCK + REQUIRE TEACHER REVIEW`.
-4. Khi có đủ câu approved theo bài, kiểm thử end-to-end student flow không đổi trạng thái phát hành tự động.
+- Promote only teacher-approved/verified candidates into the stable question schema.
+- Preserve provenance, versions, verification evidence, reviewer and timestamps.
+- Build coverage/statistics toward a materially useful approved bank.
 
-## Chưa được tự triển khai
+## THEN — M4 Teacher Product
 
-- Không cài/vận hành C2C, Cloudflare tunnel, OAuth hoặc Node bridge.
-- Không cài/vận hành DeepSeek/Qwen, không gọi paid API và không đặt key/budget.
-- Không deploy cloud, migration database, thay đổi quyền, hay phát hành nội dung.
+- Exam blueprint/selection.
+- Duplicate/difficulty/answer-distribution checks.
+- DOCX/PDF/LaTeX export with answer key, solutions, matrix/specification.
 
-## Quy tắc xếp hàng
+## LATER
 
-Ưu tiên task reversible, local-first, có test độc lập và không đụng source/OCR/student data. Dừng khi chạm stop condition trong `AGENTS.md` hoặc `ai/PROVIDER_POLICY.md`.
+- M5 student practice/adaptive learning.
+- M6 AI generation/tutor and scale tooling.
+- Optional developer orchestration: Codex→DeepSeek fallback worker and 9Router only after it solves a measured workflow problem.
+
+## Global rules
+
+Local/deterministic first. External AI only when it adds measurable value. No AI auto-approves or releases content. Stop on destructive DB migration, external private-data transfer, production release, or other stop conditions in `AGENTS.md`.
