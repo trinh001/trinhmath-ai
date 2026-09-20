@@ -1,7 +1,7 @@
 import json
 
 from candidate_classification import classify_candidates
-from candidate_data_adapter import adapt_real_m2_inputs, aggregate_classification_metrics
+from candidate_data_adapter import adapt_real_m2_inputs, aggregate_classification_metrics, build_pending_provenance_bridges
 from candidate_review_queue import build_candidate_review_queue, filter_candidate_review_queue
 from run_local_m2_measurement import run_measurement
 
@@ -216,3 +216,12 @@ def test_trusted_candidate_link_ignores_untrusted_link_noise():
     assert match["candidate_linked_source_count"] == 2
     assert match["trusted_candidate_linked_source_count"] == 1
     assert report["classifications"][0]["outcome"] == "MATCHED"
+
+
+def test_unique_file_question_bridge_is_pending_and_never_trusted():
+    provenance = [trusted_question_provenance(matched_candidate_id="wrong-id", provenance_trusted=True)]
+    bridge = build_pending_provenance_bridges([raw_candidate()], provenance)
+
+    assert bridge[0]["matched_candidate_id"] == "candidate-1"
+    assert bridge[0]["provenance_trusted"] is False
+    assert bridge[0]["link_status"] == "PENDING_TEACHER_CONFIRMATION"

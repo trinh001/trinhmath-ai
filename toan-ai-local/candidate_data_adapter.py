@@ -64,6 +64,37 @@ def adapt_question_provenance(raw_question_provenance: object) -> list[dict[str,
     return records
 
 
+def build_pending_provenance_bridges(candidates: object, provenance: object) -> list[dict[str, Any]]:
+    """Suggest only unique file/question-number links; never trust or persist them.
+
+    The resulting rows are derived, read-only review evidence.  They do not
+    alter Converter output and cannot produce MATCHED without a separate,
+    explicit teacher confirmation in the existing provenance workflow.
+    """
+    by_key: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for candidate in adapt_candidates(candidates):
+        key = (normalize_text(candidate.get("source_file")), str(candidate.get("question_number") or "").strip())
+        if all(key):
+            by_key.setdefault(key, []).append(candidate)
+    bridges: list[dict[str, Any]] = []
+    for source in adapt_question_provenance(provenance):
+        key = (normalize_text(source.get("source_file")), str(source.get("question_number") or "").strip())
+        matches = by_key.get(key, [])
+        if len(matches) != 1:
+            continue
+        candidate = matches[0]
+        if str(source.get("matched_candidate_id") or "").strip() == str(candidate.get("candidate_id") or "").strip():
+            continue
+        bridge = dict(source)
+        bridge["source_record_id"] = f"{source['source_record_id']}::pending-key-bridge"
+        bridge["matched_candidate_id"] = str(candidate.get("candidate_id") or "").strip()
+        bridge["provenance_trusted"] = False
+        bridge["provenance_kind"] = "derived_pending_source_question_bridge"
+        bridge["link_status"] = "PENDING_TEACHER_CONFIRMATION"
+        bridges.append(bridge)
+    return bridges
+
+
 def adapt_real_m2_inputs(
     raw_candidates: object,
     raw_sources: object,
@@ -72,7 +103,8 @@ def adapt_real_m2_inputs(
     candidates = adapt_candidates(raw_candidates)
     file_sources = adapt_source_catalog(raw_sources)
     question_sources = adapt_question_provenance(raw_question_provenance)
-    sources = [*question_sources, *file_sources]
+    pending_bridges = build_pending_provenance_bridges(candidates, question_sources)
+    sources = [*question_sources, *pending_bridges, *file_sources]
 
     known_files = {str(source.get("source_file") or "") for source in file_sources}
     source_index: dict[str, list[dict[str, Any]]] = {}
@@ -99,6 +131,7 @@ def adapt_real_m2_inputs(
             "candidate_count": len(candidates),
             "source_count": len(file_sources),
             "question_provenance_count": len(question_sources),
+            "pending_provenance_bridge_count": len(pending_bridges),
             "trusted_question_provenance_count": sum(bool(row.get("provenance_trusted")) for row in question_sources),
             "candidate_source_reference_count": sum(bool(value) for value in candidate_files),
             "candidate_source_catalog_coverage": sum(value in known_files for value in candidate_files if value),

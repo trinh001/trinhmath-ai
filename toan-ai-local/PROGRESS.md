@@ -148,3 +148,9 @@ _Cập nhật: 13/09/2026_
 - Không có record provenance nào được coi là tin cậy khi chưa có liên kết nguồn được giáo viên duyệt rõ ràng. Các điểm nghẽn thực tế gồm source match confidence thấp (4.829), hình/công thức cần đối chiếu (4.063), source quality review (1.648) và candidate trùng (1.043). Không hạ ngưỡng để tăng MATCHED.
 - Converter có nền tảng M3 versioned trusted-question: chỉ review `APPROVED_MANUAL` của giáo viên, evidence giáo viên không rỗng, provenance nguồn rõ, cấu trúc đề/đáp án/lời giải đầy đủ và Math evidence không mâu thuẫn mới được promote thành `APPROVED`. Việc này không thay thế release validation cho học sinh.
 - Regression hiện đạt: 110 pytest của `toan-ai-local`, 9 pytest cho development fallback, và sáu check Converter (có trusted-bank gate). Không commit database, OCR, nguồn, question bank hay dữ liệu học sinh.
+
+## M3-S0 pending provenance bridge — 21/09/2026
+
+- Adapter tạo bridge chỉ-đọc khi `source_file + question_number` là duy nhất. Bridge luôn `PENDING_TEACHER_CONFIRMATION`, `provenance_trusted=False`, không ghi đè export Converter và không thể tự tạo `MATCHED`, approval hay release.
+- Đo cục bộ: 624/779 key trùng duy nhất, nhưng chỉ 4 provenance cần bridge mới; M2 vẫn `MATCHED=0`, `REVIEW_REQUIRED=4843`.
+- Full pytest: **113 passed**. Chưa commit/push dữ liệu hoặc trạng thái review local.
