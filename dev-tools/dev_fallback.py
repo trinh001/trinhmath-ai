@@ -25,8 +25,8 @@ from pathlib import Path
 from typing import Iterable
 
 
-DEEPSEEK_FLASH_MODEL = "openai/deepseek-v4-flash"
-DEEPSEEK_PRO_MODEL = "openai/deepseek-v4-pro"
+DEEPSEEK_FLASH_MODEL = "deepseek/deepseek-v4-flash"
+DEEPSEEK_PRO_MODEL = "deepseek/deepseek-v4-pro"
 DEEPSEEK_API_BASE = "https://api.deepseek.com"
 STATE_DIR = ".dev-fallback"
 STATE_FILE = "state.json"
