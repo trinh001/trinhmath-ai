@@ -1,0 +1,31 @@
+# Never expose local/private teaching data to the DeepSeek fallback.
+**/data/
+**/sources/
+**/output/
+**/tmp/
+**/backups/
+*.db
+*.sqlite*
+*.log
+*.key
+*.pem
+*.secret
+*.bin
+.env
+.env.*
+toan-ai-local/question_candidates.json
+toan-ai-local/question_candidates_triaged.json
+toan-ai-local/question_bank.json
+toan-ai-local/question_drafts.json
+toan-ai-local/approved_questions.json
+toan-ai-local/quiz_variants.json
+toan-ai-local/image_analysis.json
+toan-ai-local/source_catalog.json
+toan-ai-local/question_provenance.json
+toan-ai-local/results.db
+toan-ai-local/.gemini_key.bin
+toan-ai-local/.remembered_user.json
+
+# Runtime state for this orchestrator.
+.dev-fallback/
+.dev-fallback-venv/
