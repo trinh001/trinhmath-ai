@@ -4883,7 +4883,7 @@ def main():
             if filtered_m2_rows:
                 st.dataframe(
                     [{
-                        "Ưu tiên": " / ".join(str(value) for value in row["priority"][:2]),
+                        "Ưu tiên": row["priority"],
                         "Kết quả": row["outcome"],
                         "Lý do": ", ".join(row["reason_codes"]),
                         "Bài": row["lesson"],
