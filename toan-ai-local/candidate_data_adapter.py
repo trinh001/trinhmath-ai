@@ -1,4 +1,4 @@
-"""Read-only adapter from the local candidate/source schema to M2-S1."""
+"""Read-only adapters for the local M2 candidate/source/provenance schemas."""
 from __future__ import annotations
 
 from collections import Counter
@@ -12,7 +12,7 @@ def _rows(value: object) -> list[Mapping[str, Any]]:
     if isinstance(value, list):
         return [item for item in value if isinstance(item, Mapping)]
     if isinstance(value, Mapping):
-        nested = value.get("sources") or value.get("candidates")
+        nested = value.get("sources") or value.get("candidates") or value.get("question_provenance")
         if isinstance(nested, list):
             return [item for item in nested if isinstance(item, Mapping)]
     return []
@@ -31,7 +31,7 @@ def adapt_candidates(raw_candidates: object) -> list[dict[str, Any]]:
 
 
 def adapt_source_catalog(raw_sources: object) -> list[dict[str, Any]]:
-    """Map current ``file_name/original_name`` records to source-match metadata."""
+    """Map file-level source metadata. File metadata alone is never trusted provenance."""
     adapted = []
     for source in _rows(raw_sources):
         file_name = str(source.get("source_file") or source.get("file_name") or "").strip()
@@ -43,27 +43,63 @@ def adapt_source_catalog(raw_sources: object) -> list[dict[str, Any]]:
             "grade": source.get("grade"),
             "lesson": source.get("lesson"),
             "document_kind": source.get("document_kind"),
+            "provenance_kind": "file_catalog_metadata",
+            "provenance_trusted": False,
         })
     return adapted
 
 
-def adapt_real_m2_inputs(raw_candidates: object, raw_sources: object) -> dict[str, Any]:
+def adapt_question_provenance(raw_question_provenance: object) -> list[dict[str, Any]]:
+    """Copy question-level provenance emitted by the local Converter."""
+    records = []
+    for source in _rows(raw_question_provenance):
+        item = dict(source)
+        item["source_record_id"] = str(item.get("source_record_id") or "").strip()
+        item["source_file"] = str(item.get("source_file") or "").strip()
+        item["source_name"] = str(item.get("source_name") or item["source_file"]).strip()
+        item["matched_candidate_id"] = str(item.get("matched_candidate_id") or "").strip()
+        item["provenance_trusted"] = bool(item.get("provenance_trusted"))
+        if item["source_record_id"] and item["source_file"]:
+            records.append(item)
+    return records
+
+
+def adapt_real_m2_inputs(
+    raw_candidates: object,
+    raw_sources: object,
+    raw_question_provenance: object = None,
+) -> dict[str, Any]:
     candidates = adapt_candidates(raw_candidates)
-    sources = adapt_source_catalog(raw_sources)
-    known_files = {str(source.get("source_file") or "") for source in sources}
+    file_sources = adapt_source_catalog(raw_sources)
+    question_sources = adapt_question_provenance(raw_question_provenance)
+    sources = [*question_sources, *file_sources]
+
+    known_files = {str(source.get("source_file") or "") for source in file_sources}
     source_index: dict[str, list[dict[str, Any]]] = {}
+    candidate_index: dict[str, list[dict[str, Any]]] = {}
     for source in sources:
         source_file = normalize_text(source.get("source_file"))
         if source_file:
             source_index.setdefault(source_file, []).append(source)
+        matched_candidate_id = str(source.get("matched_candidate_id") or "").strip()
+        if matched_candidate_id:
+            candidate_index.setdefault(matched_candidate_id, []).append(source)
+
     candidate_files = [str(candidate.get("source_file") or "") for candidate in candidates]
     return {
         "candidates": candidates,
         "sources": sources,
-        "source_match_input": {"sources": sources, "by_source_file": source_index},
+        "question_provenance": question_sources,
+        "source_match_input": {
+            "sources": sources,
+            "by_source_file": source_index,
+            "by_candidate_id": candidate_index,
+        },
         "schema_summary": {
             "candidate_count": len(candidates),
-            "source_count": len(sources),
+            "source_count": len(file_sources),
+            "question_provenance_count": len(question_sources),
+            "trusted_question_provenance_count": sum(bool(row.get("provenance_trusted")) for row in question_sources),
             "candidate_source_reference_count": sum(bool(value) for value in candidate_files),
             "candidate_source_catalog_coverage": sum(value in known_files for value in candidate_files if value),
             "candidate_source_missing_from_catalog": sum(bool(value) and value not in known_files for value in candidate_files),
