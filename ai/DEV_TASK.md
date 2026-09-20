@@ -5,6 +5,13 @@ Run this package through `RUN_DEV_TASK_AUTO.bat`.
 The launcher runs Codex first. If Codex stops because quota/rate-limit is exhausted,
 DeepSeek/Aider continues from the SAME git working tree. Do not restart from scratch.
 
+AUTHORIZATION FOR THIS TASK:
+- the already-configured DeepSeek/Aider fallback is authorized to process PUBLIC/TRACKED REPOSITORY CODE only;
+- ordinary DeepSeek API usage through the existing DEEPSEEK_API_KEY is already authorized for this fallback workflow;
+- this is NOT authorization to read or send gitignored/private runtime data, OCR/source documents, databases, question-bank JSON, student data, credentials, or secrets;
+- do not stop merely because the authorized fallback may incur normal usage on the already-configured DeepSeek account;
+- stop if additional provider access, a new paid service, a balance top-up/budget increase, or private-data transmission would be required.
+
 ## TASK — Finish M2 on real local data, then build M3 foundation
 
 ### 0. Startup
@@ -234,7 +241,8 @@ Stop only for a real safety/product boundary:
 - destructive DB/schema migration required;
 - potential data loss;
 - private data would need to be sent to an external model/service;
-- paid external API beyond existing authorization is required;
+- paid external API beyond the already-authorized DeepSeek fallback is required;
+- the existing DeepSeek account would require a new balance top-up or budget increase;
 - production deployment is required;
 - auto-approval or auto-release would be required;
 - local schema/data is unreadable enough that continuing risks corruption.
