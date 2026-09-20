@@ -8,13 +8,19 @@ if not exist "ai\DEV_TASK.md" (
   exit /b 1
 )
 
+if not exist ".dev-fallback-venv\Scripts\python.exe" (
+  echo Fallback environment is not installed yet.
+  echo Run SETUP_DEV_FALLBACK.bat once first.
+  exit /b 1
+)
+
 if not exist ".dev-fallback-venv\Scripts\aider.exe" (
   echo Aider fallback is not installed yet.
   echo Run SETUP_DEV_FALLBACK.bat once first.
   exit /b 1
 )
 
-py "dev-tools\dev_fallback.py" --repo "%CD%" --task-file "ai\DEV_TASK.md"
+".dev-fallback-venv\Scripts\python.exe" "dev-tools\dev_fallback.py" --repo "%CD%" --task-file "ai\DEV_TASK.md"
 set EXIT_CODE=%ERRORLEVEL%
 
 echo.
