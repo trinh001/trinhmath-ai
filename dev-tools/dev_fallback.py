@@ -260,6 +260,8 @@ def resolve_aider(repo: Path) -> str | None:
     if configured:
         return configured
     candidates = [
+        repo / ".dev-fallback-bin" / "aider.exe",
+        repo / ".dev-fallback-bin" / "aider",
         repo / ".dev-fallback-venv" / "Scripts" / "aider.exe",
         repo / ".dev-fallback-venv" / "bin" / "aider",
     ]
