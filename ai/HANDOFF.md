@@ -36,7 +36,8 @@ For long coding packages requiring automatic quota fallback:
 3. Codex is primary;
 4. if Codex stops on quota/rate-limit, the external orchestrator switches to DeepSeek/Aider on the same git working tree;
 5. DeepSeek route is selected by task complexity;
-6. default completion is code + tests + validated diff, with no automatic commit/push.
+6. default completion is code + tests + validated diff, with no automatic commit/push;
+7. the configured DeepSeek/Aider fallback is pre-authorized for public/tracked repository code and ordinary usage on the existing DeepSeek account; private/gitignored runtime data remains forbidden.
 
 Private/local runtime files remain excluded from the DeepSeek fallback and Git.
 
@@ -63,6 +64,8 @@ Do not allow any AI to auto-approve or auto-release content.
 - ambiguous/conflicting evidence fails closed;
 - raw source/OCR/student data stays local;
 - no external AI should receive private source/OCR/student content;
+- sending public/tracked repository code to the configured DeepSeek fallback is allowed for this development workflow;
+- ordinary use of the existing DeepSeek API key for that fallback is authorized; additional paid services/top-ups are not;
 - trusted provenance is source-link evidence, not content approval;
 - teacher approval and student release remain separate gates.
 
