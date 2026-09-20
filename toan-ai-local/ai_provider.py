@@ -387,7 +387,11 @@ def _parse_response(body: Mapping[str, Any] | None) -> tuple[Mapping[str, Any] |
     if not isinstance(body, Mapping):
         return None, UsageMetadata()
     try:
-        content = body["choices"][0]["message"]["content"]
+        choice = body["choices"][0]
+        finish_reason = choice.get("finish_reason")
+        if finish_reason not in {None, "stop"}:
+            return None, UsageMetadata()
+        content = choice["message"]["content"]
         output = json.loads(content)
     except (KeyError, IndexError, TypeError, json.JSONDecodeError):
         return None, UsageMetadata()
