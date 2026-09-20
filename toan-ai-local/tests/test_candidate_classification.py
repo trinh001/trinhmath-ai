@@ -150,3 +150,49 @@ def test_cli_can_write_a_utf8_derived_report_without_touching_inputs(tmp_path, m
 
     assert main() == 0
     assert '"unclassified_count": 0' in output_path.read_text(encoding="utf-8")
+
+
+def test_math_sensitive_matching_does_not_collapse_different_operators():
+    report = classify_candidates(
+        [candidate(question_text="Giải x + 1 = 4.", correct_answer="3")],
+        [source(question_text="Giải x - 1 = 4.", correct_answer="3")],
+    )
+
+    row = report["classifications"][0]
+    assert row["outcome"] == REVIEW_REQUIRED
+    assert "QUESTION_OPERATOR_CONFLICT" in row["reason_codes"]
+    assert row["evidence"]["source_match"]["status"] != "CONFIRMED"
+
+
+def test_answer_sign_is_preserved_for_conflict_detection():
+    report = classify_candidates(
+        [candidate(correct_answer="-1")],
+        [source(correct_answer="1")],
+    )
+
+    row = report["classifications"][0]
+    assert row["outcome"] == REVIEW_REQUIRED
+    assert "SOURCE_ANSWER_CONFLICT" in row["reason_codes"]
+
+
+def test_missing_solution_is_review_required_not_destructively_invalid():
+    report = classify_candidates(
+        [candidate(solution_text="", correct_answer="5")],
+        [source()],
+    )
+
+    row = report["classifications"][0]
+    assert row["outcome"] == REVIEW_REQUIRED
+    assert "SOURCE_QUALITY_REVIEW_REQUIRED" in row["reason_codes"]
+    assert "MISSING_SOLUTION_TEXT" not in row["evidence"]["structural"]["hard_issues"]
+
+
+def test_source_catalog_can_be_mapping_of_source_ids():
+    report = classify_candidates(
+        [candidate()],
+        {"source-a": source(source_record_id="source-a")},
+    )
+
+    row = report["classifications"][0]
+    assert row["outcome"] == MATCHED
+    assert row["evidence"]["source_match"]["catalog_size"] == 1
