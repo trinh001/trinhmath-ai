@@ -190,6 +190,8 @@ def _match_score(candidate: Mapping[str, Any], source: Mapping[str, Any], index:
     return {
         "source_id": _source_id(source, index),
         "score": round(sum(components.values()), 4),
+        "provenance_trusted": bool(source.get("provenance_trusted", True)),
+        "matched_candidate_id": _text(source.get("matched_candidate_id")),
         "components": components,
         "question_text_similarity": round(text_similarity, 4),
         "question_text_exact": question_exact,
@@ -208,6 +210,10 @@ def source_match_evidence(candidate: Mapping[str, Any], sources: object) -> dict
     records = _source_records(sources)
     candidate_file = normalize_text(candidate.get("source_file"))
     indexed_records = None
+    candidate_records = None
+    candidate_id = _text(candidate.get("candidate_id"))
+    if isinstance(sources, Mapping) and isinstance(sources.get("by_candidate_id"), Mapping):
+        candidate_records = sources["by_candidate_id"].get(candidate_id)
     if isinstance(sources, Mapping) and isinstance(sources.get("by_source_file"), Mapping):
         indexed_records = sources["by_source_file"].get(candidate_file)
     same_file_records = (
@@ -217,10 +223,14 @@ def source_match_evidence(candidate: Mapping[str, Any], sources: object) -> dict
             if candidate_file and normalize_text(source.get("source_file")) == candidate_file
         ]
     )
-    # A known exact file identity is stronger evidence than a broad text scan.
-    # Preserve every record for that file so duplicate/ambiguous source records
-    # still fail closed; only use the full catalog when file identity is absent.
-    records_to_compare = same_file_records or records
+    # A question-level provenance record linked to this exact candidate is the
+    # narrowest evidence set. Otherwise fall back to same-file records, then the
+    # full catalog. Every set is still scored and ambiguity remains fail-closed.
+    linked_records = (
+        [source for source in candidate_records if isinstance(source, Mapping)]
+        if isinstance(candidate_records, list) else []
+    )
+    records_to_compare = linked_records or same_file_records or records
     matches = [_match_score(candidate, source, index) for index, source in enumerate(records_to_compare, start=1)]
     matches.sort(key=lambda item: (-float(item["score"]), str(item["source_id"])))
     top = matches[0] if matches else None
@@ -229,6 +239,7 @@ def source_match_evidence(candidate: Mapping[str, Any], sources: object) -> dict
         top
         and float(top["score"]) >= MATCH_THRESHOLD
         and top["source_file_exact"]
+        and bool(top.get("provenance_trusted"))
         and float(top["question_text_similarity"]) >= 0.85
         and not top["operator_conflict"]
         and not top["answer_conflict"]
@@ -248,6 +259,7 @@ def source_match_evidence(candidate: Mapping[str, Any], sources: object) -> dict
         "plausible_threshold": PLAUSIBLE_MATCH_THRESHOLD,
         "catalog_size": len(records),
         "compared_source_count": len(matches),
+        "candidate_linked_source_count": len(linked_records),
         "top_match": top,
         "plausible_source_ids": [item["source_id"] for item in plausible],
     }
