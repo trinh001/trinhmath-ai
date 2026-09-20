@@ -40,8 +40,36 @@ def normalize_text(value: object) -> str:
     return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
 
 
+def _math_sensitive_fingerprint(value: object) -> str:
+    """Preserve operators/numeric punctuation so distinct math stays distinct."""
+    text = str(value or "").lower()
+    text = "".join(
+        character for character in unicodedata.normalize("NFD", text)
+        if unicodedata.category(character) != "Mn"
+    ).replace("đ", "d")
+    translations = str.maketrans({"−": "-", "–": "-", "—": "-", "×": "*", "÷": "/"})
+    text = text.translate(translations)
+    keep = set("+-*/^=<>≤≥≠%().,[]{}_\\")
+    return "".join(character for character in text if character.isalnum() or character in keep)
+
+
+def _comparison_tokens(value: object) -> set[str]:
+    text = str(value or "").lower()
+    text = "".join(
+        character for character in unicodedata.normalize("NFD", text)
+        if unicodedata.category(character) != "Mn"
+    ).replace("đ", "d")
+    text = text.translate(str.maketrans({"−": "-", "–": "-", "—": "-", "×": "*", "÷": "/"}))
+    return set(re.findall(r"\w+|[+\-*/^=<>≤≥≠%]", text, flags=re.UNICODE))
+
+
+def _operator_signature(value: object) -> tuple[str, ...]:
+    text = str(value or "").translate(str.maketrans({"−": "-", "–": "-", "—": "-", "×": "*", "÷": "/"}))
+    return tuple(re.findall(r"[+\-*/^=<>≤≥≠%]", text))
+
+
 def _compact_fingerprint(value: object) -> str:
-    return normalize_text(value).replace(" ", "")
+    return _math_sensitive_fingerprint(value)
 
 
 def _fingerprint_digest(value: object) -> str:
@@ -64,7 +92,7 @@ def _options(candidate: Mapping[str, Any]) -> tuple[str, ...]:
     values = candidate.get("options")
     if not isinstance(values, list):
         return ()
-    return tuple(normalize_text(value) for value in values if normalize_text(value))
+    return tuple(_math_sensitive_fingerprint(value) for value in values if _math_sensitive_fingerprint(value))
 
 
 def _image_names(candidate: Mapping[str, Any]) -> set[str]:
@@ -79,7 +107,12 @@ def _image_names(candidate: Mapping[str, Any]) -> set[str]:
 def _source_records(records: object) -> list[Mapping[str, Any]]:
     if isinstance(records, Mapping):
         nested = records.get("sources")
-        values = nested if isinstance(nested, list) else [records]
+        if isinstance(nested, list):
+            values = nested
+        elif records and all(isinstance(value, Mapping) for value in records.values()):
+            values = list(records.values())
+        else:
+            values = [records]
     elif isinstance(records, Iterable) and not isinstance(records, (str, bytes, bytearray)):
         values = list(records)
     else:
@@ -98,8 +131,8 @@ def _source_id(record: Mapping[str, Any], index: int) -> str:
 
 
 def _token_similarity(left: object, right: object) -> float:
-    left_tokens = set(normalize_text(left).split())
-    right_tokens = set(normalize_text(right).split())
+    left_tokens = _comparison_tokens(left)
+    right_tokens = _comparison_tokens(right)
     if not left_tokens or not right_tokens:
         return 0.0
     return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
@@ -114,12 +147,12 @@ def _match_score(candidate: Mapping[str, Any], source: Mapping[str, Any], index:
     source_number = normalize_text(source.get("question_number"))
     candidate_question = candidate.get("question_text")
     source_question = source.get("question_text")
-    candidate_answer = normalize_text(_answer(candidate))
-    source_answer = normalize_text(_answer(source))
+    candidate_answer = _math_sensitive_fingerprint(_answer(candidate))
+    source_answer = _math_sensitive_fingerprint(_answer(source))
     candidate_options = _options(candidate)
     source_options = _options(source)
-    candidate_formula = normalize_text(candidate.get("formula_fingerprint"))
-    source_formula = normalize_text(source.get("formula_fingerprint"))
+    candidate_formula = _math_sensitive_fingerprint(candidate.get("formula_fingerprint"))
+    source_formula = _math_sensitive_fingerprint(source.get("formula_fingerprint"))
 
     file_exact = bool(candidate_file and source_file and candidate_file == source_file)
     name_exact = bool(candidate_name and source_name and candidate_name == source_name)
@@ -129,6 +162,9 @@ def _match_score(candidate: Mapping[str, Any], source: Mapping[str, Any], index:
         and _compact_fingerprint(candidate_question) == _compact_fingerprint(source_question)
     )
     text_similarity = 1.0 if question_exact else _token_similarity(candidate_question, source_question)
+    candidate_operators = _operator_signature(candidate_question)
+    source_operators = _operator_signature(source_question)
+    operator_conflict = bool(candidate_operators and source_operators and candidate_operators != source_operators)
     answer_conflict = bool(candidate_answer and source_answer and candidate_answer != source_answer)
     answer_exact = bool(candidate_answer and source_answer and candidate_answer == source_answer)
     options_conflict = bool(candidate_options and source_options and candidate_options != source_options)
@@ -156,6 +192,8 @@ def _match_score(candidate: Mapping[str, Any], source: Mapping[str, Any], index:
         "score": round(sum(components.values()), 4),
         "components": components,
         "question_text_similarity": round(text_similarity, 4),
+        "question_text_exact": question_exact,
+        "operator_conflict": operator_conflict,
         "answer_conflict": answer_conflict,
         "options_conflict": options_conflict,
         "formula_conflict": formula_conflict,
@@ -175,6 +213,8 @@ def source_match_evidence(candidate: Mapping[str, Any], sources: object) -> dict
         top
         and float(top["score"]) >= MATCH_THRESHOLD
         and top["source_file_exact"]
+        and float(top["question_text_similarity"]) >= 0.85
+        and not top["operator_conflict"]
         and not top["answer_conflict"]
         and len(plausible) == 1
     )
@@ -212,8 +252,6 @@ def structural_evidence(candidate: object) -> dict[str, Any]:
         hard_issues.append("MISSING_CANDIDATE_ID")
     if not _text(candidate.get("question_text")):
         hard_issues.append("MISSING_QUESTION_TEXT")
-    if not _text(candidate.get("solution_text")):
-        hard_issues.append("MISSING_SOLUTION_TEXT")
     if not _reference(candidate):
         hard_issues.append("MISSING_SOURCE_REFERENCE")
     if bool(candidate.get("source_association_impossible")):
@@ -324,6 +362,8 @@ def classify_candidate(
     elif match["status"] != "CONFIRMED":
         ambiguity_codes.append("SOURCE_MATCH_LOW_CONFIDENCE")
     top = match.get("top_match") if isinstance(match.get("top_match"), Mapping) else {}
+    if top.get("operator_conflict"):
+        ambiguity_codes.append("QUESTION_OPERATOR_CONFLICT")
     if top.get("answer_conflict"):
         ambiguity_codes.append("SOURCE_ANSWER_CONFLICT")
     if top.get("options_conflict"):
