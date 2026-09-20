@@ -29,3 +29,6 @@ toan-ai-local/.remembered_user.json
 # Runtime state for this orchestrator.
 .dev-fallback/
 .dev-fallback-venv/
+
+.dev-fallback-tools/
+.dev-fallback-bin/
