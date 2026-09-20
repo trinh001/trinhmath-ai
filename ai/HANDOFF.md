@@ -79,11 +79,11 @@ Do not allow any AI to auto-approve or auto-release content.
 
 ## NEXT AFTER CURRENT TASK
 
-Current bottleneck is not code generation; it is trusted source review. The next package is M3-S1 Teacher Review Pilot:
-- deterministic local shortlist of the safest 20–50 REVIEW_REQUIRED rows;
-- fast teacher review UI with audit trail;
-- explicit APPROVED_MANUAL / REVIEW_REQUIRED / REJECTED decisions;
-- explicit separate promotion into the versioned trusted bank;
-- no auto-approval and no student release.
+The pending provenance bridge is merged on main. The immediate next package is M3-S0 Teacher Confirm:
+- show pending source_file + question_number bridge evidence locally;
+- explicit teacher Confirm / Reject with audit history;
+- keep raw Converter provenance unchanged;
+- only teacher-confirmed derived bridge records may set provenance_trusted=True;
+- rerun local M2 and report aggregates only.
 
-Only after a small trusted seed set exists should the roadmap move to teacher exam generation and Word/PDF export.
+After at least some teacher-confirmed trusted provenance exists, proceed to M3-S1 trusted seed review and explicit promotion into the versioned trusted bank.
