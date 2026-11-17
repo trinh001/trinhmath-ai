@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0d1f45">
+  <meta name="description" content="NEXUS MATH BANK - Ngân hàng câu hỏi Toán THCS và THPT có kiểm duyệt, luyện tập trực tuyến và OCR ảnh đề.">
+  <title>NEXUS MATH BANK · Học Toán thông minh</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script defer src="config.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="head-inner wrap">
+      <button class="brand" data-nav="home" aria-label="Trang chủ NEXUS MATH BANK"><span class="brand-mark">N<span class="mini-mark">+</span></span><span class="brand-text"><strong>NEXUS <em>MATH BANK</em></strong><small>HỆ THỐNG HỌC TOÁN</small></span></button>
+      <div class="header-right"><span class="header-pill" id="mode-pill">Đang tải</span><button class="icon-btn" data-nav="login" id="account-button" aria-label="Quản trị viên">⚙</button></div>
+    </div>
+  </header>
+  <nav class="top-nav" aria-label="Điều hướng chính"><div class="wrap nav-items" id="nav-items">
+    <button data-nav="home" class="active">⌂ <span>Trang chủ</span></button>
+    <button data-nav="bank">▤ <span>Ngân hàng</span></button>
+    <button data-nav="exams">◈ <span>Đề thi</span></button>
+    <button data-nav="ocr">▣ <span>OCR ảnh</span></button>
+    <button data-nav="admin">⚙ <span>Quản trị</span></button>
+  </div></nav>
+  <main id="app" class="wrap" aria-live="polite"><section class="panel"><p>Đang mở NEXUS MATH BANK…</p></section></main>
+  <footer><div class="wrap footer-inner"><span>© NEXUS MATH BANK · Toán 9–12</span><span>Dữ liệu OCR cần được giáo viên kiểm duyệt · Tối ưu cho điện thoại</span></div></footer>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
